@@ -1,0 +1,43 @@
+We are evolving DREVO into a dual marketplace:
+1) B2C Discovery (existing): AI intent search across brand catalogs.
+2) B2B Wholesale (new): private marketplace for liquidation lots for verified buyers.
+
+KEEP current B2C flows working:
+- /, /home, /search?q=, /product/:id, /api/search, embeddings + pgvector.
+
+ADD a new B2B module “DREVO Wholesale” with minimal MVP screens + API:
+Routes:
+- /wholesale (browse lots)
+- /wholesale/lot/:id (lot detail)
+- /wholesale/sell (brand creates a lot) [simple form]
+- /wholesale/apply (buyer application / verification form) [simple form]
+
+Database additions (Postgres):
+Create tables:
+- wholesale_buyers (id, company_name, tax_id_optional, contact_email, phone, status(pending/approved/rejected), created_at)
+- wholesale_lots (id, brand_id, title, description, category_id, total_units, moq_units, price_per_unit, currency, discount_pct_optional, location_city, status(draft/active/closed), created_at)
+- wholesale_lot_items (id, lot_id, product_id_optional, sku_optional, size_breakdown_jsonb, color, material, unit_count)
+- wholesale_lot_images (id, lot_id, url, position)
+- wholesale_orders (id, buyer_id, lot_id, status(pending/reserved/paid/shipped/cancelled), total_amount, payment_method(transfer/manual), created_at)
+- wholesale_messages (optional MVP: can be skipped)
+
+Access rules (MVP):
+- Wholesale prices and lots are visible ONLY to approved buyers.
+- Public users can see a teaser page for /wholesale prompting them to apply.
+- Brands can create lots (assume brand users already exist).
+- Admin approval can be manual; store buyer status.
+
+Payments (MVP):
+- Do NOT implement full payment provider.
+- Implement “Reserve Lot” flow: creates wholesale_order with status='reserved' and shows instructions for bank transfer.
+- Add an admin-only endpoint or simple flag update to mark as paid.
+
+UX:
+- Keep same premium dark UI.
+- Wholesale UI should feel like “private deals”.
+- Add “Apply for Wholesale Access” CTA.
+
+IMPORTANT:
+- Implement code, not a plan.
+- Provide DB migrations/SQL updates and update any seed data so there are at least 3 sample lots and 2 sample buyers (one approved, one pending).
+- Keep everything runnable in Replit with Run button.
