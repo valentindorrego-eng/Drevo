@@ -1,0 +1,305 @@
+PROJECT NAME
+DREVO
+
+ROLE
+You are a world-class full-stack engineer + startup CTO + product designer + database architect.
+Your job is to build a complete, working MVP web app in Replit for a vertical fashion marketplace called DREVO.
+DREVO is “the intelligence layer over fashion inventory”: users search by intent (vibe/occasion/style) and DREVO returns ranked products across brands. Brands fulfill orders (no DREVO logistics). Argentina-first MVP.
+
+PRIMARY OUTCOME (NON-NEGOTIABLE)
+When I click “Run” in Replit:
+- The app launches successfully.
+- I can open the Landing page.
+- I can go to Home, type a natural language query, and see AI-ranked product results.
+- I can click a product and see product details.
+- The project includes a Supabase SQL migration to create DB + pgvector + RLS + RPC match function.
+- The project includes a script or server-only route to generate embeddings for products and store them in pgvector.
+If any piece is missing, you MUST implement it.
+
+CORE IDEA (BUSINESS CONTEXT)
+Problem:
+- Fashion brands carry excess inventory / dead-stock that sits for months and becomes margin-destroying when discounted.
+- Consumers can’t find what they want using standard filters; they search by intention (“black oversized tee with a red graphic for a night out”).
+Solution:
+- A vertical marketplace where brands list products (especially excess inventory) and ship themselves.
+- DREVO’s main feature is AI intent search: a chat-like search bar that understands natural language and returns ranked products + simple outfit suggestions.
+Business model (for later): marketplace commission 20–30%, Brand Pro subscription (analytics + boosted placement), sponsored placements. Payments can be stubbed in MVP; focus on search + product discovery.
+
+MVP SCOPE (BUILD NOW)
+User side:
+1) Landing page (/) with premium minimal dark aesthetic, strong value prop, demo prompt chips
+2) Home (/home) with:
+   - prominent chat-like AI search bar
+   - prompt chips
+   - minimal navigation
+3) Search results (/search?q=...):
+   - shows ranked product cards (image, brand, title, price, reasons)
+   - filter chips suggested by AI (sizes, brands)
+   - an “Outfit suggestion” card (MVP simple bundle: top 3 results)
+4) Product detail (/product/[id]):
+   - images
+   - description
+   - variants / sizes with stock
+   - tags
+   - brand name
+5) Cart and Checkout can be placeholders:
+   - /cart and /checkout should exist but can show “coming soon” UI
+
+Brand/Admin:
+- Keep BRAND PORTAL and ADMIN minimal for MVP in Replit:
+  - Provide at least a basic “seed data” approach to simulate multiple brands/products
+  - Optional: simple brand product upload page if easy
+Focus on the core: search by intent + product pages.
+
+TECH STACK (MANDATORY)
+- Next.js 14+ with App Router
+- TypeScript
+- TailwindCSS
+- Supabase for Postgres + Auth + Storage
+- pgvector extension in Supabase for embeddings + vector search
+- OpenAI for embeddings + intent extraction (environment variables)
+- Replit compatibility: scripts and instructions must work in Replit environment
+
+ARCHITECTURE REQUIREMENTS
+Frontend:
+- Next.js App Router routes:
+  - app/page.tsx (Landing)
+  - app/home/page.tsx
+  - app/search/page.tsx
+  - app/product/[id]/page.tsx
+  - app/cart/page.tsx
+  - app/checkout/page.tsx
+- Components:
+  - SearchBox (chat-like input)
+  - ProductCard
+  - PromptChips
+  - Layout header minimal
+
+Backend:
+- Next.js Route Handlers:
+  - POST /api/search (required, must work)
+  - POST /api/admin/reindex (server-only; generates embeddings for all active products) OR scripts/reindex.ts
+- Database:
+  - Supabase SQL migration in /supabase/migrations/001_init.sql
+  - Must include pgvector enable, tables, indexes, RPC function match_products()
+
+DATA MODEL (SUPABASE POSTGRES)
+Implement these tables (minimal but complete):
+1) categories
+- id uuid PK
+- name text
+- parent_id uuid nullable
+2) brands
+- id uuid PK
+- name text
+- slug text unique
+- country text default 'AR'
+- website text nullable
+- instagram text nullable
+- contact_email text nullable
+- status enum('pending','approved','rejected') default 'approved' for MVP
+- commission_rate numeric default 0.25
+- created_at timestamptz
+- updated_at timestamptz
+3) brand_users (optional for MVP, but include schema)
+- id uuid PK
+- brand_id uuid FK
+- user_id uuid FK auth.users
+- role enum('owner','admin','staff')
+4) products
+- id uuid PK
+- brand_id uuid FK brands
+- title text
+- description text nullable
+- category_id uuid FK categories nullable
+- gender enum('men','women','unisex') default 'unisex'
+- base_price numeric
+- sale_price numeric nullable
+- currency text default 'USD'
+- status enum('draft','pending','active','disabled') default 'active' for MVP
+- created_at, updated_at
+5) product_variants
+- id uuid PK
+- product_id uuid FK products
+- size_label text
+- sku text nullable
+- stock_qty int default 0
+6) product_images
+- id uuid PK
+- product_id uuid FK products
+- url text
+- position int default 0
+7) product_tags
+- id uuid PK
+- product_id uuid FK products
+- tag text
+8) product_embeddings
+- product_id uuid PK FK products
+- embedding vector(1536)  (assume OpenAI 3-small)
+- embedding_model text
+- updated_at timestamptz
+9) search_queries
+- id uuid PK
+- user_id uuid FK auth.users nullable
+- query_text text
+- parsed_intent jsonb
+- created_at timestamptz
+
+VECTOR SEARCH (CRITICAL)
+- Enable pgvector.
+- Create ivfflat index for embeddings.
+- Create SQL RPC function:
+  match_products(query_embedding vector(1536), match_count int, min_similarity float)
+returns (product_id uuid, similarity float)
+that:
+  - searches product_embeddings
+  - joins products where products.status='active'
+  - returns cosine similarity sorted best-first
+- Ensure the function works with Supabase RPC calls.
+
+SECURITY (RLS) — MVP SAFE DEFAULT
+- Enable RLS on all tables.
+- Public read allowed ONLY for:
+  - categories
+  - products where status='active'
+  - variants/images/tags only when parent product is active
+- product_embeddings must NOT be publicly readable; only server-side service role should access.
+- search_queries:
+  - allow insert for anon or logged user (user_id nullable)
+  - allow select only for same user_id when logged (optional)
+
+AI SEARCH PIPELINE (MUST IMPLEMENT)
+Endpoint: POST /api/search
+Input: { query: string, limit?: number }
+Steps:
+1) Validate input (non-empty query, limit 1..50).
+2) Intent extraction:
+   - Call OpenAI chat model to extract a strict JSON object with fields:
+     desired_item_type (string optional),
+     colors (array of strings),
+     style (array),
+     fit (string optional),
+     occasion (string optional),
+     budget_min (number optional),
+     budget_max (number optional),
+     gender (men|women|unisex optional),
+     must_have_keywords (array),
+     exclude_keywords (array)
+   - MUST return valid JSON, no markdown.
+   - Parse JSON safely. If invalid, fallback to empty intent.
+3) Embedding creation:
+   - Call OpenAI embeddings model with the query string.
+4) Vector search:
+   - Call Supabase RPC match_products with the embedding vector.
+5) Fetch details:
+   - Fetch products by IDs, include:
+     brand (name, slug),
+     images,
+     variants,
+     tags
+6) Ranking:
+   - Sort by similarity
+   - Optionally boost in-stock
+7) Response payload:
+{
+  query: string,
+  intent: object,
+  results: [
+    {
+      id, title, description,
+      base_price, sale_price, currency,
+      brand: { name, slug },
+      images: [{url, position}],
+      variants: [{size_label, stock_qty}],
+      tags: [string],
+      similarity: number,
+      reasons: [string]   (explain why it matched, max 3)
+    }
+  ],
+  suggested_filters: { sizes: string[], brands: string[] },
+  outfit_bundles: [
+    { title: string, items: [productSummary...] }
+  ]
+}
+8) Logging:
+   - Insert into search_queries (user_id nullable), store query_text and parsed_intent.
+
+EMBEDDINGS INGESTION (MUST PROVIDE)
+Create ONE of these:
+Option A) Script: /scripts/reindex.ts
+- reads active products
+- normalizes text = title + description + tags + category name
+- generates embeddings
+- upserts into product_embeddings
+Option B) API: POST /api/admin/reindex (server-only protected with secret token)
+- same logic as script
+
+Include clear instructions in README on how to run embeddings ingestion on Replit.
+
+SEED DATA (MUST INCLUDE)
+Provide a seed file or SQL inserts that create:
+- 5 categories
+- 2 brands (approved)
+- 15 products total (active)
+- variants for each product (S/M/L at least)
+- 1–2 images per product (can be placeholder URLs)
+- 3–6 tags per product (color/style/material)
+Goal: After seeding + reindex embeddings, search returns results.
+
+UI/UX SPEC (DARK PREMIUM)
+- Background black (#000), white text, subtle borders.
+- Landing headline:
+  “Encontrá ropa por intención, no por filtros.”
+- Home search prompt placeholder:
+  “Ej: remera negra oversized con estampa roja para salir”
+- Prompt chips examples:
+  “minimal black outfit para noche”
+  “hoodie oversize gris streetwear”
+  “cargo negro urbano”
+  “look elegante relajado”
+- Results show: brand, title, price, reasons.
+- Product page shows variants and tags.
+- Buttons: “Buscar”, “Ver producto”, “Agregar al carrito (próximamente)”.
+
+ENV VARS (REPLIT SECRETS)
+Create / provide .env.example with:
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+OPENAI_API_KEY=
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_CHAT_MODEL=gpt-4o-mini
+ADMIN_REINDEX_SECRET=some-long-random-string (if using /api/admin/reindex)
+
+REPLIT-SPECIFIC REQUIREMENTS
+- Provide README.md with exact steps:
+  1) Create Supabase project
+  2) Enable pgvector and run SQL migration (/supabase/migrations/001_init.sql)
+  3) Add env vars in Replit Secrets
+  4) Run seed step
+  5) Run embeddings ingestion (script or admin endpoint)
+  6) Start app with npm run dev
+- Ensure Next.js runs properly in Replit (package.json scripts correct).
+- Do NOT leave the default Next starter UI. Replace it with DREVO screens.
+
+CODE QUALITY REQUIREMENTS
+- Use TypeScript types.
+- Use Zod to validate intent JSON response.
+- Handle errors gracefully:
+  - If OpenAI fails, return empty results with helpful message.
+  - If DB fails, return 500 with error message.
+- Keep MVP minimal: do NOT build complex payments, multi-warehouse, returns system.
+- Implement only what is required for working search + discovery.
+
+FINAL OUTPUT FORMAT
+- Create all files and code in the Replit project.
+- Include:
+  - README.md
+  - .env.example
+  - /supabase/migrations/001_init.sql
+  - /scripts/reindex.ts OR /app/api/admin/reindex/route.ts
+  - /app routes and components
+  - /app/api/search/route.ts
+- After generating code, summarize exactly how to run it and what to click in Replit to verify it works.
+
+NOW BUILD THE ENTIRE MVP.
