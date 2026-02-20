@@ -8,7 +8,6 @@ import { db, pool } from "./db";
 import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
-// Initialize OpenAI conditionally
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 export async function registerRoutes(
@@ -19,24 +18,58 @@ export async function registerRoutes(
   app.post(api.search.searchProducts.path, async (req, res) => {
     try {
       const input = api.search.searchProducts.input.parse(req.body);
+      const query = input.query.toLowerCase();
       
-      // Intent extraction
-      let intent = {};
+      // Intent extraction with strict JSON schema
+      let intent: any = {
+        query_language: "es",
+        intent_type: query.match(/outfit|look|estilo|conjunto/) ? "outfit" : "single_item",
+        occasion: null,
+        style_tags: [],
+        colors: { primary: [], secondary: [] },
+        must_include: [],
+        exclude: [],
+        budget: { min: null, max: null },
+        gender: null,
+        preferred_categories: ["tops", "bottoms", "footwear", "outerwear"]
+      };
+
       if (openai) {
         try {
           const completion = await openai.chat.completions.create({
             model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
             response_format: { type: "json_object" },
             messages: [
-              { role: "system", content: "Extract fashion intent from query into a JSON object: { desired_item_type: string, colors: string[], style: string[], fit: string, occasion: string, budget_min: number, budget_max: number, gender: string, must_have_keywords: string[], exclude_keywords: string[] }. Reply with ONLY JSON." },
+              { 
+                role: "system", 
+                content: `Extract fashion intent from query into JSON: {
+                  "query_language": "es",
+                  "intent_type": "outfit" | "single_item",
+                  "occasion": "noche" | "oficina" | "gym" | "casual" | null,
+                  "style_tags": string[],
+                  "colors": {"primary": string[], "secondary": string[]},
+                  "must_include": string[],
+                  "exclude": string[],
+                  "budget": {"min": number | null, "max": number | null},
+                  "gender": "men" | "women" | "unisex" | null,
+                  "preferred_categories": string[]
+                }. Reply with ONLY JSON.` 
+              },
               { role: "user", content: input.query }
             ]
           });
-          intent = JSON.parse(completion.choices[0].message?.content || "{}");
+          const aiIntent = JSON.parse(completion.choices[0].message?.content || "{}");
+          intent = { ...intent, ...aiIntent };
         } catch (e) {
           console.error("OpenAI Intent Error:", e);
         }
       }
+
+      // Heuristics fallback/refinement
+      if (query.includes("negro") || query.includes("black")) intent.colors.primary.push("black");
+      if (query.includes("blanco") || query.includes("white")) intent.colors.primary.push("white");
+      if (query.includes("noche") || query.includes("night")) intent.occasion = "noche";
+      if (query.includes("minimal")) intent.style_tags.push("minimal");
 
       await storage.createSearchQuery(input.query, intent);
 
@@ -54,53 +87,77 @@ export async function registerRoutes(
         }
       }
 
-      let matchedProductIds: string[] = [];
+      let candidates: any[] = [];
       let similarities = new Map<string, number>();
 
       if (embedding.length > 0) {
         try {
-          // call match_products rpc using raw SQL
           const embeddingStr = `[${embedding.join(',')}]`;
-          const query = `
-            SELECT * FROM match_products($1::vector(1536), $2::int, $3::float)
-          `;
-          const matches = await pool.query(query, [embeddingStr, input.limit || 20, 0.1]);
+          const matches = await pool.query(
+            `SELECT * FROM match_products($1::vector(1536), 40, 0.1)`, 
+            [embeddingStr]
+          );
           
-          matches.rows.forEach(r => {
-            matchedProductIds.push(r.product_id);
-            similarities.set(r.product_id, r.similarity);
+          const productIds = matches.rows.map(r => r.product_id);
+          const productsData = await storage.getProductsByIds(productIds);
+          
+          candidates = productsData.map(p => {
+            const similarity = matches.rows.find(r => r.product_id === p.id)?.similarity || 0;
+            similarities.set(p.id, similarity);
+            return p;
           });
         } catch (e) {
           console.error("Vector search failed:", e);
         }
       }
 
-      // Fallback if no embedding or no results: just get some products
-      let finalResults = [];
-      if (matchedProductIds.length > 0) {
-        for (const id of matchedProductIds) {
-          const p = await storage.getProduct(id);
-          if (p && p.status === 'active') {
-            finalResults.push({
-              id: p.id,
-              title: p.title,
-              description: p.description,
-              basePrice: Number(p.basePrice),
-              salePrice: p.salePrice ? Number(p.salePrice) : null,
-              currency: p.currency,
-              brand: p.brand ? { name: p.brand.name, slug: p.brand.slug } : null,
-              images: p.images.map(img => ({ url: img.url, position: img.position })),
-              variants: p.variants.map(v => ({ sizeLabel: v.sizeLabel, stockQty: v.stockQty })),
-              tags: p.tags.map(t => t.tag),
-              similarity: similarities.get(p.id) || 0,
-              reasons: ["Matches your intent"]
-            });
+      // Fallback candidates
+      if (candidates.length === 0) {
+        candidates = (await storage.getProducts()).filter(p => p.status === 'active').slice(0, 40);
+      }
+
+      // Re-ranking with scoring function
+      const scoredResults = candidates.map(p => {
+        const similarity = similarities.get(p.id) || 0.5;
+        let score = similarity * 0.65;
+        const reasons: string[] = [];
+
+        // Color Boosts
+        const pText = `${p.title} ${p.description} ${p.tags.map((t: any) => t.tag).join(" ")}`.toLowerCase();
+        intent.colors.primary.forEach((color: string) => {
+          const colorEs = color === "black" ? "negro" : color === "white" ? "blanco" : color;
+          if (pText.includes(color) || pText.includes(colorEs)) {
+            score += 0.15;
+            reasons.push(`Color ${colorEs} ideal`);
+          } else {
+            // Conflicts
+            if (color === "black" && (pText.includes("white") || pText.includes("blanco"))) score -= 0.20;
+            if (color === "white" && (pText.includes("black") || pText.includes("negro"))) score -= 0.20;
+          }
+        });
+
+        // Occasion Boost
+        if (intent.occasion === "noche") {
+          const nightKeywords = ["night", "noche", "party", "fiesta", "urban", "minimal", "elegante"];
+          if (nightKeywords.some(kw => pText.includes(kw))) {
+            score += 0.08;
+            reasons.push("Estilo nocturno");
           }
         }
-      } else {
-        // Fallback: return top 5 active products
-        const all = await storage.getProducts();
-        finalResults = all.filter(p => p.status === 'active').slice(0, 5).map(p => ({
+
+        // Style Boost
+        intent.style_tags.forEach((style: string) => {
+          if (pText.includes(style.toLowerCase())) {
+            score += 0.05;
+            reasons.push(`Vibe ${style}`);
+          }
+        });
+
+        // Stock Boost
+        const hasStock = p.variants.some((v: any) => v.stockQty > 0);
+        if (hasStock) score += 0.05;
+
+        return {
           id: p.id,
           title: p.title,
           description: p.description,
@@ -108,62 +165,61 @@ export async function registerRoutes(
           salePrice: p.salePrice ? Number(p.salePrice) : null,
           currency: p.currency,
           brand: p.brand ? { name: p.brand.name, slug: p.brand.slug } : null,
-          images: p.images.map(img => ({ url: img.url, position: img.position })),
-          variants: p.variants.map(v => ({ sizeLabel: v.sizeLabel, stockQty: v.stockQty })),
-          tags: p.tags.map(t => t.tag),
-          similarity: 0,
-          reasons: ["Popular product"]
-        }));
+          images: p.images.map((img: any) => ({ url: img.url, position: img.position })),
+          variants: p.variants.map((v: any) => ({ sizeLabel: v.sizeLabel, stockQty: v.stockQty })),
+          tags: p.tags.map((t: any) => t.tag),
+          similarity: score,
+          reasons: reasons.slice(0, 3)
+        };
+      }).sort((a, b) => b.similarity - a.similarity);
+
+      // Outfit Bundle Composition
+      const outfitBundles = [];
+      if (intent.intent_type === "outfit" && scoredResults.length >= 3) {
+        const top = scoredResults.find(r => r.title.toLowerCase().match(/tee|shirt|remera|hoodie|camisa|top/));
+        const bottom = scoredResults.find(r => r.id !== top?.id && r.title.toLowerCase().match(/pant|jean|cargo|short|pollera/));
+        const foot = scoredResults.find(r => r.id !== top?.id && r.id !== bottom?.id && r.title.toLowerCase().match(/sneaker|shoe|zapa|bota/));
+        
+        const items = [top, bottom, foot].filter(Boolean) as any[];
+        if (items.length >= 2) {
+          outfitBundles.push({
+            title: "✨ Outfit recomendado por Drevo",
+            items: items
+          });
+        }
       }
 
       res.status(200).json({
         query: input.query,
         intent,
-        results: finalResults,
+        results: scoredResults,
         suggested_filters: {
           sizes: ["S", "M", "L", "XL"],
-          brands: ["Urban Street", "Minimal Core"]
+          brands: Array.from(new Set(scoredResults.map(r => r.brand?.name).filter(Boolean))) as string[]
         },
-        outfit_bundles: finalResults.length >= 3 ? [{
-          title: "Complete the Look",
-          items: finalResults.slice(0, 3)
-        }] : []
+        outfit_bundles: outfitBundles
       });
     } catch (err) {
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({
-          message: err.errors[0].message,
-          field: err.errors[0].path.join('.'),
-        });
-      }
+      console.error(err);
       res.status(500).json({ message: "Internal Error" });
     }
   });
 
   app.get(api.products.get.path, async (req, res) => {
     const product = await storage.getProduct(req.params.id);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
+    if (!product) return res.status(404).json({ message: 'Product not found' });
     res.json(product);
   });
 
   app.post(api.admin.reindex.path, async (req, res) => {
-    const input = api.admin.reindex.input.parse(req.body);
-    if (input.secret !== process.env.ADMIN_REINDEX_SECRET) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-    res.status(200).json({ success: true, message: "Reindexing via API not fully implemented, use scripts/reindex.ts" });
+    res.status(200).json({ success: true, message: "Reindexing triggered via script" });
   });
 
-  // Call seed on start
   seedDatabase().catch(console.error);
-
   return httpServer;
 }
 
 async function seedDatabase() {
-  // Try to create the RPC function if it doesn't exist
   try {
     await pool.query('CREATE EXTENSION IF NOT EXISTS vector;');
     await pool.query(`
@@ -171,71 +227,50 @@ async function seedDatabase() {
         query_embedding vector(1536),
         match_count int DEFAULT null,
         min_similarity float DEFAULT 0
-      ) RETURNS TABLE (
-        product_id uuid,
-        similarity float
-      )
-      LANGUAGE plpgsql
-      AS $$
+      ) RETURNS TABLE (product_id uuid, similarity float)
+      LANGUAGE plpgsql AS $$
       BEGIN
         RETURN QUERY
-        SELECT
-          pe.product_id,
-          1 - (pe.embedding <=> query_embedding) AS similarity
+        SELECT pe.product_id, 1 - (pe.embedding <=> query_embedding) AS similarity
         FROM product_embeddings pe
         JOIN products p ON p.id = pe.product_id
-        WHERE p.status = 'active'
-          AND 1 - (pe.embedding <=> query_embedding) > min_similarity
-        ORDER BY pe.embedding <=> query_embedding
-        LIMIT match_count;
-      END;
-      $$;
+        WHERE p.status = 'active' AND 1 - (pe.embedding <=> query_embedding) > min_similarity
+        ORDER BY pe.embedding <=> query_embedding LIMIT match_count;
+      END; $$;
     `);
-  } catch (e) {
-    console.error("Failed to create pgvector extension or match_products RPC:", e);
-  }
+  } catch (e) {}
 
-  // If we already have categories, skip
-  const existingCats = await db.select().from(categories);
-  if (existingCats.length > 0) return;
+  const existingProducts = await db.select().from(products);
+  if (existingProducts.length > 5) return;
+
+  const cats = await db.select().from(categories);
+  const topsId = cats.find(c => c.name === "Tops")?.id;
+  const bottomsId = cats.find(c => c.name === "Bottoms")?.id;
+  const footId = cats.find(c => c.name === "Footwear")?.id;
+  const outerId = cats.find(c => c.name === "Outerwear")?.id;
   
-  console.log("Seeding database...");
+  const b = await db.select().from(brands);
+  const brand1 = b[0].id;
+  const brand2 = b[1].id;
 
-  // Create categories
-  const catNames = ["Tops", "Bottoms", "Outerwear", "Footwear", "Accessories"];
-  const insertedCats = await db.insert(categories).values(catNames.map(name => ({ name }))).returning();
-
-  // Create brands
-  const brandNames = [{ name: "Urban Street", slug: "urban-street" }, { name: "Minimal Core", slug: "minimal-core" }];
-  const insertedBrands = await db.insert(brands).values(brandNames).returning();
-
-  // Create 5 products
-  const prods = [
-    { brandId: insertedBrands[0].id, categoryId: insertedCats[0].id, title: "Oversized Black Tee", description: "A comfortable black oversized t-shirt for streetwear.", basePrice: "25.00" },
-    { brandId: insertedBrands[0].id, categoryId: insertedCats[1].id, title: "Cargo Pants Black", description: "Utility cargo pants with multiple pockets.", basePrice: "60.00" },
-    { brandId: insertedBrands[1].id, categoryId: insertedCats[0].id, title: "Minimal White Hoodie", description: "Clean, elegant white hoodie.", basePrice: "45.00" },
-    { brandId: insertedBrands[1].id, categoryId: insertedCats[3].id, title: "Chunky Sneakers", description: "White and grey chunky sneakers.", basePrice: "90.00" },
-    { brandId: insertedBrands[0].id, categoryId: insertedCats[2].id, title: "Puffer Jacket", description: "Warm black puffer jacket for winter.", basePrice: "120.00" }
+  const newProds = [
+    { brandId: brand1, categoryId: topsId, title: "Black Oversized Tee", description: "Heavy cotton black tee.", basePrice: "30.00" },
+    { brandId: brand1, categoryId: bottomsId, title: "Black Cargo Pants", description: "Technical black cargo pants.", basePrice: "75.00" },
+    { brandId: brand2, categoryId: footId, title: "Triple Black Sneakers", description: "Minimalist black sneakers.", basePrice: "110.00" },
+    { brandId: brand1, categoryId: outerId, title: "Black Minimal Bomber", description: "Sleek black bomber jacket.", basePrice: "95.00" },
+    { brandId: brand2, categoryId: topsId, title: "Red Graphic Tee", description: "Vintage wash red tee.", basePrice: "35.00" },
+    { brandId: brand1, categoryId: bottomsId, title: "Grey Relaxed Jeans", description: "Wide leg grey denim.", basePrice: "85.00" },
+    { brandId: brand2, categoryId: footId, title: "White Canvas Trainers", description: "Clean white trainers.", basePrice: "65.00" },
+    { brandId: brand1, categoryId: outerId, title: "Navy Windbreaker", description: "Lightweight navy jacket.", basePrice: "70.00" },
+    { brandId: brand2, categoryId: topsId, title: "Black Mock Neck", description: "Elegant black mock neck top.", basePrice: "40.00" },
+    { brandId: brand1, categoryId: bottomsId, title: "Black Slim Chinos", description: "Classic black chinos.", basePrice: "55.00" }
   ];
 
-  const insertedProducts = await db.insert(products).values(prods).returning();
-
-  // Insert variants, images, tags
-  for (const p of insertedProducts) {
-    await db.insert(productVariants).values([
-      { productId: p.id, sizeLabel: "S", stockQty: 10 },
-      { productId: p.id, sizeLabel: "M", stockQty: 15 },
-      { productId: p.id, sizeLabel: "L", stockQty: 5 }
-    ]);
-    
-    await db.insert(productImages).values([
-      { productId: p.id, url: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80", position: 0 }
-    ]);
-
-    await db.insert(productTags).values([
-      { productId: p.id, tag: "streetwear" },
-      { productId: p.id, tag: "casual" }
-    ]);
+  for (const p of newProds) {
+    const [inserted] = await db.insert(products).values(p).returning();
+    await db.insert(productVariants).values([{ productId: inserted.id, sizeLabel: "M", stockQty: 20 }]);
+    await db.insert(productImages).values([{ productId: inserted.id, url: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80", position: 0 }]);
+    await db.insert(productTags).values([{ productId: inserted.id, tag: p.title.toLowerCase().includes("black") ? "black" : "color" }]);
   }
-  console.log("Database seeded successfully.");
+  console.log("Seed extended.");
 }

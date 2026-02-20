@@ -1,0 +1,68 @@
+We need to upgrade the MVP search experience to feel magical TODAY, without adding new major modules.
+
+GOAL:
+When the user searches an outfit intent (e.g. "outfit minimalista negro para noche"), we must:
+1) Extract a better structured intent (colors, occasion, style, item types).
+2) Improve ranking with hard/soft boosts so results respect color + occasion.
+3) Add an "Outfit 추천" (outfit recommendation) section ABOVE product grid:
+   - Compose a simple outfit bundle: TOP + BOTTOM + FOOTWEAR (or OUTERWEAR)
+   - Each slot should be filled by a different product category if possible.
+
+CONSTRAINTS:
+- Keep current tech: React(Vite) + Express + Postgres + pgvector + OpenAI.
+- Do NOT build B2B wholesale now.
+- Minimal code changes, focused on /api/search + frontend /search UI.
+- Must keep existing response working, just enhance it.
+- Spanish (Argentina) copy.
+
+IMPLEMENTATION DETAILS:
+
+A) Improve intent extraction:
+- Update /api/search to call OpenAI with a strict JSON schema output:
+  {
+    "query_language": "es",
+    "intent_type": "outfit" | "single_item",
+    "occasion": "noche" | "oficina" | "gym" | "casual" | null,
+    "style_tags": ["minimal", "streetwear", ...],
+    "colors": {"primary": ["black"], "secondary": []},
+    "must_include": [],
+    "exclude": [],
+    "budget": {"min": null, "max": null},
+    "gender": null,
+    "preferred_categories": ["tops","bottoms","footwear","outerwear"]
+  }
+- Use heuristics fallback if the LLM returns generic values:
+  - detect "negro/black", "noche/night", "outfit/look", "minimal/minimalista"
+  - set intent_type="outfit" when query includes outfit/look/estilo
+
+B) Ranking improvements:
+- Keep vector similarity search to retrieve e.g. top 40 candidates.
+- Then re-rank with a scoring function:
+  score = (similarity * 0.65) + boosts
+  boosts:
+    +0.15 if product has primary color match (via tags or title/description contains "black/negro")
+    -0.20 if product conflicts with primary color (e.g. contains "white/blanco") when primary is black
+    +0.08 if occasion match (night -> tags like "night", "party", "urban", "minimal")
+    +0.05 if style tag match
+    +0.05 if in-stock
+- Ensure we return reasons[] that mention why it matched (color/style/occasion).
+
+C) Outfit bundle composition:
+- If intent_type == "outfit", build outfit_bundles[0] with 3 slots:
+  - top: pick highest scoring product from category tops/hoodies/tees
+  - bottom: pick highest scoring from pants/jeans/cargo
+  - footwear: pick highest scoring from sneakers/shoes
+- Avoid using same product twice.
+- If not enough categories, fill with next best distinct categories.
+
+D) Frontend changes:
+- On /search results page, show:
+  1) "✨ Outfit recomendado por Drevo" card at top with 3 product tiles (Top, Pantalón, Zapas)
+  2) Below: "Resultados" grid (existing)
+- Update the “Intención detectada” copy to show extracted values:
+  - Example: "Intención: Outfit · Estilo: Minimal · Color: Negro · Ocasión: Noche"
+- Keep suggestion chips, but add chips for detected color/occasion.
+
+DELIVERABLE:
+- Implement code changes in backend + frontend so the demo feels wow.
+- Add 10 more seed products with varied colors/categories (black jacket, black jeans, black shoes, red graphic tee, etc.) to make outfit bundles realistic.

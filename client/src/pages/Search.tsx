@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import { useSearchProducts } from "@/hooks/use-search";
 import { ProductCard } from "@/components/ProductCard";
-import { Search as SearchIcon, Loader2, Sparkles, Filter, SlidersHorizontal } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Search as SearchIcon, Loader2, Sparkles, Filter, ShoppingBag } from "lucide-react";
+import { motion } from "framer-motion";
 
 export default function Search() {
   const [location, setLocation] = useLocation();
@@ -33,8 +33,6 @@ export default function Search() {
       <Navigation />
 
       <div className="pt-24 pb-12 px-4 md:px-8 max-w-[1600px] mx-auto">
-        
-        {/* Search Header */}
         <div className="mb-12 max-w-3xl">
           <form onSubmit={handleSubmit} className="relative">
             <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
@@ -43,29 +41,28 @@ export default function Search() {
               onChange={(e) => setInputValue(e.target.value)}
               className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
               placeholder="Refiná tu búsqueda..."
+              data-testid="input-search"
             />
           </form>
 
-          {/* AI Intent Badge */}
           {searchResults?.intent && (
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mt-4 flex items-start gap-3 p-4 bg-white/5 border border-white/5 rounded-lg"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 flex flex-wrap gap-2 p-3 bg-white/5 border border-white/5 rounded-lg text-xs"
             >
-              <Sparkles className="w-5 h-5 text-yellow-200 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm text-neutral-300">
-                  <span className="font-medium text-white">Intención detectada:</span> {" "}
-                  Estamos buscando un estilo <span className="text-white italic">"{searchResults.intent?.style || 'personalizado'}"</span> {" "}
-                  para <span className="text-white italic">"{searchResults.intent?.occasion || 'cualquier ocasión'}"</span>.
-                </p>
+              <div className="flex items-center gap-1.5 text-yellow-200">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="font-medium">Intención detectada:</span>
               </div>
+              <span className="text-neutral-400">Tipo: <span className="text-white capitalize">{searchResults.intent.intent_type === 'outfit' ? 'Outfit' : 'Prenda'}</span></span>
+              {searchResults.intent.occasion && <span className="text-neutral-400">Ocasión: <span className="text-white capitalize">{searchResults.intent.occasion}</span></span>}
+              {searchResults.intent.colors?.primary?.length > 0 && <span className="text-neutral-400">Color: <span className="text-white capitalize">{searchResults.intent.colors.primary.join(', ')}</span></span>}
+              {searchResults.intent.style_tags?.length > 0 && <span className="text-neutral-400">Estilo: <span className="text-white capitalize">{searchResults.intent.style_tags.join(', ')}</span></span>}
             </motion.div>
           )}
         </div>
 
-        {/* Content Area */}
         {isPending ? (
           <div className="flex flex-col items-center justify-center py-32 space-y-6">
             <Loader2 className="w-10 h-10 text-white animate-spin" />
@@ -74,61 +71,53 @@ export default function Search() {
         ) : searchResults ? (
           <div className="space-y-16">
             
-            {/* Suggested Filters */}
-            {searchResults.suggested_filters && (
-              <div className="flex flex-wrap gap-3 pb-4 border-b border-white/5">
-                <div className="flex items-center gap-2 text-sm text-neutral-500 mr-2">
-                  <Filter className="w-4 h-4" />
-                  <span>Sugerencias:</span>
+            {/* OUTFIT RECOMMENDATION SECTION */}
+            {searchResults.outfit_bundles && searchResults.outfit_bundles.length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="bg-neutral-900/40 border border-white/10 p-8 rounded-2xl"
+              >
+                <div className="flex items-center gap-2 mb-8">
+                  <Sparkles className="w-6 h-6 text-yellow-200" />
+                  <h2 className="text-2xl font-display font-bold">✨ Outfit recomendado por Drevo</h2>
                 </div>
-                {searchResults.suggested_filters.brands.slice(0, 4).map(brand => (
-                  <button key={brand} className="px-3 py-1.5 text-xs bg-white/5 border border-white/5 hover:border-white/20 text-neutral-300 rounded-md transition-colors">
-                    {brand}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  {searchResults.outfit_bundles[0].items.map((item, idx) => (
+                    <div key={item.id} className="relative group">
+                      <div className="absolute -top-3 left-4 z-10 bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        {idx === 0 ? 'Superior' : idx === 1 ? 'Inferior' : 'Calzado'}
+                      </div>
+                      <ProductCard product={item} />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-8 flex justify-center">
+                  <button className="flex items-center gap-2 bg-white text-black px-8 py-3 rounded-full font-bold hover:bg-neutral-200 transition-colors">
+                    <ShoppingBag className="w-5 h-5" />
+                    Comprar Look Completo
                   </button>
-                ))}
-                {searchResults.suggested_filters.sizes.map(size => (
-                  <button key={size} className="px-3 py-1.5 text-xs bg-white/5 border border-white/5 hover:border-white/20 text-neutral-300 rounded-md transition-colors">
-                    Talle {size}
-                  </button>
-                ))}
-              </div>
+                </div>
+              </motion.div>
             )}
 
             {/* Results Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12">
-              {searchResults.results.map((product, idx) => (
-                <ProductCard key={product.id} product={product} index={idx} />
-              ))}
+            <div>
+              <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
+                <h3 className="text-xl font-bold">Resultados</h3>
+                <span className="text-sm text-neutral-500">{searchResults.results.length} productos</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-12">
+                {searchResults.results.map((product, idx) => (
+                  <ProductCard key={product.id} product={product} index={idx} />
+                ))}
+              </div>
             </div>
             
             {searchResults.results.length === 0 && (
               <div className="text-center py-20">
                 <p className="text-neutral-500">No encontramos productos exactos para esa descripción.</p>
-                <button 
-                  onClick={() => setInputValue("")} 
-                  className="mt-4 text-white underline underline-offset-4"
-                >
-                  Intentar otra búsqueda
-                </button>
-              </div>
-            )}
-
-            {/* Outfit Bundles (If any) */}
-            {searchResults.outfit_bundles && searchResults.outfit_bundles.length > 0 && (
-              <div className="border-t border-white/10 pt-16">
-                <h2 className="text-2xl font-display font-bold mb-8">Outfits Sugeridos</h2>
-                <div className="grid md:grid-cols-2 gap-8">
-                  {searchResults.outfit_bundles.map((bundle, i) => (
-                    <div key={i} className="bg-neutral-900/30 border border-white/5 p-6 rounded-xl">
-                      <h3 className="text-lg font-semibold mb-4">{bundle.title}</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        {bundle.items.map(item => (
-                          <ProductCard key={item.id} product={item} />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <button onClick={() => setInputValue("")} className="mt-4 text-white underline underline-offset-4">Intentar otra búsqueda</button>
               </div>
             )}
           </div>
