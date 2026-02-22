@@ -1,0 +1,104 @@
+TASK: Implement Tiendanube (Nuvemshop) OAuth connection + product sync for ONE store (ONearthly) inside the existing DREVO MVP (React Vite + Express + Postgres + pgvector + OpenAI).
+
+GOAL: In <30 minutes I should be able to connect my Tiendanube store, sync products, and use Drevo AI Search over real inventory.
+
+CONSTRAINTS:
+- Keep the current architecture and codebase.
+- Minimal UI: add a simple Integrations page with “Connect Tiendanube” and “Sync products”.
+- Use environment variables (Replit Secrets) for credentials.
+- Do not build wholesale/B2B.
+- Spanish (Argentina) UI copy.
+
+REFERENCE (MUST FOLLOW):
+Tiendanube OAuth flow:
+1) Redirect user to: https://www.tiendanube.com/apps/{client_id}/authorize?state=...
+2) Callback receives ?code=...&state=...
+3) Exchange code for token via POST https://www.tiendanube.com/apps/authorize/token with JSON:
+   { "client_id": "...", "client_secret":"...", "grant_type":"authorization_code", "code":"..." }
+Source: https://tiendanube.github.io/api-documentation/authentication
+
+API Base URL: https://api.tiendanube.com/v1
+Product resource docs: https://tiendanube.github.io/api-documentation/resources/product
+
+SECRETS (ALREADY SET IN REPLIT):
+- TIENDANUBE_CLIENT_ID
+- TIENDANUBE_CLIENT_SECRET
+- TIENDANUBE_REDIRECT_URI (https://<replit_public_url>/auth/tiendanube/callback)
+
+IMPLEMENTATION REQUIREMENTS:
+
+A) Database
+Create a new table:
+- brand_integrations
+  - id uuid PK default gen_random_uuid()
+  - brand_id uuid nullable (we can link later)
+  - provider text NOT NULL CHECK (provider in ('tiendanube'))
+  - store_id bigint nullable
+  - access_token text NOT NULL
+  - scope text nullable
+  - created_at timestamptz default now()
+
+Add a safe way to upsert by provider+store_id.
+
+B) Backend Routes (Express)
+1) GET /auth/tiendanube/start
+   - Generate a random state string (csrf)
+   - Store it in session or a temporary in-memory map keyed by state (MVP ok)
+   - Redirect to Tiendanube authorize URL:
+     https://www.tiendanube.com/apps/${TIENDANUBE_CLIENT_ID}/authorize?state=${state}
+   - (If Tiendanube requires additional params, add redirect_uri and scopes if supported by docs; otherwise rely on app config in DevHub)
+
+2) GET /auth/tiendanube/callback
+   - Validate state
+   - Read ?code=
+   - POST to https://www.tiendanube.com/apps/authorize/token with JSON:
+     { client_id, client_secret, grant_type:'authorization_code', code }
+   - Receive access_token and store_id if present in response (log response shape and handle both cases)
+   - Save into brand_integrations table (provider='tiendanube')
+   - Redirect user to /brand/integrations?connected=1
+
+3) POST /api/integrations/tiendanube/sync-products
+   - Find the latest tiendanube integration token
+   - Fetch products from Tiendanube API using:
+     GET https://api.tiendanube.com/v1/{store_id}/products
+     Header: Authentication: bearer ACCESS_TOKEN  (or the correct header from docs)
+   - Import:
+     - products (title, description, price, sale_price if exists, status active)
+     - variants (size from option1/option2 if present; stock)
+     - images (src)
+     - tags (split tags; also add inferred tags like colors from title/description)
+   - Ensure idempotent: map external product id to our products table using a new column:
+     products.external_provider, products.external_id (add columns)
+   - After insert/update, generate embeddings for each active product and store in product_embeddings.
+   - Return JSON: { imported, updated, failed, store_id }
+
+Note: If the API requires pagination, implement basic pagination (page=1..N) until empty.
+
+C) Frontend
+Add a page:
+- /brand/integrations
+UI:
+- Title: “Integraciones”
+- Card: “Tiendanube”
+- Button 1: “Conectar Tiendanube”
+  - Opens /auth/tiendanube/start
+- Button 2: “Sincronizar productos”
+  - Calls POST /api/integrations/tiendanube/sync-products
+- Status text:
+  - “Conectado ✅” if integration exists
+  - “No conectado” otherwise
+- After sync, show counts: imported/updated.
+
+D) Quality & Debug
+- Add server logs for callback response and sync status.
+- Handle missing store_id gracefully (if token response does not include store_id):
+  - Add an input field on integrations page to manually paste store_id once (MVP) and store it in brand_integrations.
+- Ensure search still works with imported products.
+
+DELIVERABLES:
+- Migrations for new table + products external columns.
+- Backend endpoints working end-to-end.
+- Frontend page to connect + sync.
+- Minimal but robust error handling with clear messages in Spanish.
+
+DO IT NOW. Modify the existing codebase accordingly.
