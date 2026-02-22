@@ -6,8 +6,9 @@ import { z } from "zod";
 import OpenAI from "openai";
 import { db, pool } from "./db";
 import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
+// Initialize OpenAI conditionally
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 export async function registerRoutes(
@@ -66,10 +67,10 @@ export async function registerRoutes(
       }
 
       // Heuristics fallback/refinement
-      if (query.includes("negro") || query.includes("black")) intent.colors.primary.push("black");
-      if (query.includes("blanco") || query.includes("white")) intent.colors.primary.push("white");
+      if ((query.includes("negro") || query.includes("black")) && !intent.colors.primary.includes("black")) intent.colors.primary.push("black");
+      if ((query.includes("blanco") || query.includes("white")) && !intent.colors.primary.includes("white")) intent.colors.primary.push("white");
       if (query.includes("noche") || query.includes("night")) intent.occasion = "noche";
-      if (query.includes("minimal")) intent.style_tags.push("minimal");
+      if (query.includes("minimal") && !intent.style_tags.includes("minimal")) intent.style_tags.push("minimal");
 
       await storage.createSearchQuery(input.query, intent);
 
@@ -254,23 +255,38 @@ async function seedDatabase() {
   const brand2 = b[1].id;
 
   const newProds = [
-    { brandId: brand1, categoryId: topsId, title: "Black Oversized Tee", description: "Heavy cotton black tee.", basePrice: "30.00" },
-    { brandId: brand1, categoryId: bottomsId, title: "Black Cargo Pants", description: "Technical black cargo pants.", basePrice: "75.00" },
-    { brandId: brand2, categoryId: footId, title: "Triple Black Sneakers", description: "Minimalist black sneakers.", basePrice: "110.00" },
-    { brandId: brand1, categoryId: outerId, title: "Black Minimal Bomber", description: "Sleek black bomber jacket.", basePrice: "95.00" },
-    { brandId: brand2, categoryId: topsId, title: "Red Graphic Tee", description: "Vintage wash red tee.", basePrice: "35.00" },
-    { brandId: brand1, categoryId: bottomsId, title: "Grey Relaxed Jeans", description: "Wide leg grey denim.", basePrice: "85.00" },
-    { brandId: brand2, categoryId: footId, title: "White Canvas Trainers", description: "Clean white trainers.", basePrice: "65.00" },
-    { brandId: brand1, categoryId: outerId, title: "Navy Windbreaker", description: "Lightweight navy jacket.", basePrice: "70.00" },
-    { brandId: brand2, categoryId: topsId, title: "Black Mock Neck", description: "Elegant black mock neck top.", basePrice: "40.00" },
-    { brandId: brand1, categoryId: bottomsId, title: "Black Slim Chinos", description: "Classic black chinos.", basePrice: "55.00" }
+    { brandId: brand1, categoryId: topsId, title: "Black Oversized Tee", description: "Heavy cotton black tee for a minimal night look.", basePrice: "30.00" },
+    { brandId: brand1, categoryId: bottomsId, title: "Black Cargo Pants", description: "Technical black cargo pants with utility pockets.", basePrice: "75.00" },
+    { brandId: brand2, categoryId: footId, title: "Triple Black Sneakers", description: "Minimalist triple black sneakers for urban style.", basePrice: "110.00" },
+    { brandId: brand1, categoryId: outerId, title: "Black Minimal Bomber", description: "Sleek black bomber jacket, perfect for night outings.", basePrice: "95.00" },
+    { brandId: brand2, categoryId: topsId, title: "Red Graphic Tee", description: "Vintage wash red tee with a bold graphic.", basePrice: "35.00" },
+    { brandId: brand1, categoryId: bottomsId, title: "Grey Relaxed Jeans", description: "Wide leg grey denim for a casual fit.", basePrice: "85.00" },
+    { brandId: brand2, categoryId: footId, title: "White Canvas Trainers", description: "Clean white trainers for everyday wear.", basePrice: "65.00" },
+    { brandId: brand1, categoryId: outerId, title: "Navy Windbreaker", description: "Lightweight navy jacket for outdoor activities.", basePrice: "70.00" },
+    { brandId: brand2, categoryId: topsId, title: "Black Mock Neck", description: "Elegant black mock neck top for formal occasions.", basePrice: "40.00" },
+    { brandId: brand1, categoryId: bottomsId, title: "Black Slim Chinos", description: "Classic black chinos with a slim fit.", basePrice: "55.00" },
+    { brandId: brand1, categoryId: outerId, title: "Black Denim Jacket", description: "Classic black denim jacket, a staple for any outfit.", basePrice: "80.00" },
+    { brandId: brand2, categoryId: bottomsId, title: "Black Straight Jeans", description: "Durable black straight-cut jeans.", basePrice: "70.00" },
+    { brandId: brand1, categoryId: footId, title: "Black Chelsea Boots", description: "Polished black chelsea boots for a smart look.", basePrice: "130.00" }
   ];
 
   for (const p of newProds) {
     const [inserted] = await db.insert(products).values(p).returning();
-    await db.insert(productVariants).values([{ productId: inserted.id, sizeLabel: "M", stockQty: 20 }]);
+    await db.insert(productVariants).values([
+      { productId: inserted.id, sizeLabel: "M", stockQty: 20 },
+      { productId: inserted.id, sizeLabel: "L", stockQty: 15 }
+    ]);
     await db.insert(productImages).values([{ productId: inserted.id, url: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=500&q=80", position: 0 }]);
-    await db.insert(productTags).values([{ productId: inserted.id, tag: p.title.toLowerCase().includes("black") ? "black" : "color" }]);
+    
+    const tags = [];
+    if (p.title.toLowerCase().includes("black")) tags.push("black", "negro");
+    if (p.title.toLowerCase().includes("white")) tags.push("white", "blanco");
+    if (p.description.toLowerCase().includes("night") || p.description.toLowerCase().includes("noche")) tags.push("night", "noche");
+    if (p.description.toLowerCase().includes("minimal")) tags.push("minimal");
+    
+    if (tags.length > 0) {
+      await db.insert(productTags).values(tags.map(tag => ({ productId: inserted.id, tag })));
+    }
   }
-  console.log("Seed extended.");
+  console.log("Seed extended with 13 diverse products.");
 }
