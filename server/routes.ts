@@ -5,7 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
 import { db, pool } from "./db";
-import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings } from "@shared/schema";
+import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings, brandIntegrations } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 
 // Initialize OpenAI conditionally
@@ -15,6 +15,59 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // Tiendanube OAuth Routes
+  app.get("/auth/tiendanube/start", (req, res) => {
+    const clientId = process.env.TIENDANUBE_CLIENT_ID;
+    if (!clientId) {
+      return res.status(500).json({ message: "Missing TIENDANUBE_CLIENT_ID" });
+    }
+    const state = Math.random().toString(36).substring(7);
+    const authUrl = `https://www.tiendanube.com/apps/${clientId}/authorize?state=${state}`;
+    res.redirect(authUrl);
+  });
+
+  app.get("/auth/tiendanube/callback", async (req, res) => {
+    const { code, state } = req.query;
+    if (!code) {
+      return res.status(400).json({ message: "Missing authorization code" });
+    }
+
+    try {
+      const response = await fetch("https://www.tiendanube.com/apps/authorize/token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          client_id: process.env.TIENDANUBE_CLIENT_ID,
+          client_secret: process.env.TIENDANUBE_CLIENT_SECRET,
+          grant_type: "authorization_code",
+          code,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        console.error("Tiendanube token exchange failed:", data);
+        return res.status(500).json({ message: "Token exchange failed", error: data });
+      }
+
+      const { access_token, user_id } = data; // store_id is often returned as user_id in Tiendanube response
+      
+      // Store in database
+      await db.insert(brandIntegrations).values({
+        provider: "tiendanube",
+        storeId: String(user_id),
+        accessToken: access_token,
+      });
+
+      res.json({ success: true, store_id: user_id });
+    } catch (error) {
+      console.error("Tiendanube callback error:", error);
+      res.status(500).json({ message: "Internal server error during callback" });
+    }
+  });
 
   app.post(api.search.searchProducts.path, async (req, res) => {
     try {

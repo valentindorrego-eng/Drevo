@@ -98,6 +98,14 @@ export const searchQueries = pgTable("search_queries", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const brandIntegrations = pgTable("brand_integrations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  provider: text("provider").notNull(),
+  storeId: text("store_id"), // Using text to be safe with large IDs or use bigint
+  accessToken: text("access_token").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Zod schemas and types
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true, updatedAt: true });
@@ -106,6 +114,7 @@ export const insertProductVariantSchema = createInsertSchema(productVariants).om
 export const insertProductImageSchema = createInsertSchema(productImages).omit({ id: true });
 export const insertProductTagSchema = createInsertSchema(productTags).omit({ id: true });
 export const insertSearchQuerySchema = createInsertSchema(searchQueries).omit({ id: true, createdAt: true });
+export const insertBrandIntegrationSchema = createInsertSchema(brandIntegrations).omit({ id: true, createdAt: true });
 
 export type Category = typeof categories.$inferSelect;
 export type Brand = typeof brands.$inferSelect;
@@ -114,3 +123,4 @@ export type ProductVariant = typeof productVariants.$inferSelect;
 export type ProductImage = typeof productImages.$inferSelect;
 export type ProductTag = typeof productTags.$inferSelect;
 export type SearchQuery = typeof searchQueries.$inferSelect;
+export type BrandIntegration = typeof brandIntegrations.$inferSelect;
