@@ -25,7 +25,6 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black">
       <Navigation />
-
       <main className="relative pt-32 pb-20 px-4 md:px-8 max-w-7xl mx-auto min-h-screen flex flex-col justify-center">
         
         {/* Hero Section */}
@@ -44,9 +43,7 @@ export default function Landing() {
             
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold tracking-tighter leading-[0.9]">
               Encontrá ropa <br className="hidden md:block"/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-neutral-400 to-white">
-                por intención.
-              </span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-neutral-400 to-white">con intención.</span>
             </h1>
             
             <p className="text-lg md:text-xl text-neutral-400 max-w-2xl mx-auto font-light leading-relaxed">
