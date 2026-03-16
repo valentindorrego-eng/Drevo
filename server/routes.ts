@@ -144,18 +144,29 @@ export async function registerRoutes(
             messages: [
               { 
                 role: "system", 
-                content: `Extract fashion intent from query into JSON: {
-                  "query_language": "es",
-                  "intent_type": "outfit" | "single_item",
-                  "occasion": "noche" | "oficina" | "gym" | "casual" | null,
-                  "style_tags": string[],
-                  "colors": {"primary": string[], "secondary": string[]},
-                  "must_include": string[],
-                  "exclude": string[],
-                  "budget": {"min": number | null, "max": number | null},
-                  "gender": "men" | "women" | "unisex" | null,
-                  "preferred_categories": string[]
-                }. Reply with ONLY JSON.` 
+                content: `You are a fashion search intent extractor. Parse the user query into JSON.
+
+RULES:
+- If the query mentions 2+ different garment types (e.g. "remera y pantalón"), set intent_type to "outfit"
+- For outfit queries, must_include should be an array where EACH entry is a COMPLETE search phrase for one garment, including its color/pattern. Example: "remera gris con estampa blanca y bermuda negra" → must_include: ["remera gris con estampa blanca", "bermuda negra"]
+- colors.primary = ALL colors mentioned in the query (both Spanish and English)
+- colors.secondary = colors that are secondary/accent (e.g. the print color, not the base)
+- exclude = things the user explicitly doesn't want (e.g. "no deportiva" → ["deportiva"])
+
+JSON schema:
+{
+  "query_language": "es" | "en",
+  "intent_type": "outfit" | "single_item",
+  "occasion": "noche" | "oficina" | "gym" | "casual" | "cena" | "viaje" | "playa" | null,
+  "style_tags": string[],
+  "colors": {"primary": string[], "secondary": string[]},
+  "must_include": string[],
+  "exclude": string[],
+  "budget": {"min": number | null, "max": number | null},
+  "gender": "men" | "women" | "unisex" | null,
+  "preferred_categories": string[]
+}
+Reply with ONLY valid JSON, no explanation.` 
               },
               { role: "user", content: input.query }
             ]
@@ -233,19 +244,63 @@ export async function registerRoutes(
       let candidates: any[] = [];
       let similarities = new Map<string, number>();
 
-      if (embedding.length > 0) {
+      const doVectorSearch = async (queryText: string, limit: number = 40) => {
+        if (!openai) return [];
+        try {
+          const embRes = await openai.embeddings.create({
+            model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+            input: queryText,
+          });
+          const embStr = `[${embRes.data[0].embedding.join(',')}]`;
+          const matches = await pool.query(
+            `SELECT * FROM match_products($1::vector(1536), $2, 0.1)`,
+            [embStr, limit]
+          );
+          const productIds = matches.rows.map((r: any) => r.product_id);
+          const productsData = await storage.getProductsByIds(productIds);
+          return productsData.map(p => {
+            const sim = matches.rows.find((r: any) => r.product_id === p.id)?.similarity || 0;
+            return { product: p, similarity: sim };
+          });
+        } catch (e) {
+          console.error("Vector search error:", e);
+          return [];
+        }
+      };
+
+      if (intent.intent_type === "outfit" && intent.must_include?.length > 1) {
+        const seenIds = new Set<string>();
+        for (const itemQuery of intent.must_include) {
+          const results = await doVectorSearch(itemQuery, 20);
+          for (const r of results) {
+            if (!seenIds.has(r.product.id)) {
+              seenIds.add(r.product.id);
+              candidates.push(r.product);
+              similarities.set(r.product.id, r.similarity);
+            }
+          }
+        }
+        if (candidates.length < 10) {
+          const mainResults = await doVectorSearch(input.query, 40);
+          for (const r of mainResults) {
+            if (!seenIds.has(r.product.id)) {
+              seenIds.add(r.product.id);
+              candidates.push(r.product);
+              similarities.set(r.product.id, r.similarity);
+            }
+          }
+        }
+      } else if (embedding.length > 0) {
         try {
           const embeddingStr = `[${embedding.join(',')}]`;
           const matches = await pool.query(
             `SELECT * FROM match_products($1::vector(1536), 40, 0.1)`, 
             [embeddingStr]
           );
-          
-          const productIds = matches.rows.map(r => r.product_id);
+          const productIds = matches.rows.map((r: any) => r.product_id);
           const productsData = await storage.getProductsByIds(productIds);
-          
           candidates = productsData.map(p => {
-            const similarity = matches.rows.find(r => r.product_id === p.id)?.similarity || 0;
+            const similarity = matches.rows.find((r: any) => r.product_id === p.id)?.similarity || 0;
             similarities.set(p.id, similarity);
             return p;
           });
@@ -254,7 +309,6 @@ export async function registerRoutes(
         }
       }
 
-      // Fallback candidates
       if (candidates.length === 0) {
         candidates = (await storage.getProducts()).filter(p => p.status === 'active').slice(0, 40);
       }
@@ -303,6 +357,15 @@ export async function registerRoutes(
             reasons.push(`Color ${colorDisplayName[color] || color}`);
           }
         });
+        if (intent.colors.secondary) {
+          intent.colors.secondary.forEach((color: string) => {
+            const synonyms = allColorWords[color] || [color];
+            if (synonyms.some(s => pText.includes(s))) {
+              score += 0.10;
+              reasons.push(`Color ${colorDisplayName[color] || color}`);
+            }
+          });
+        }
 
         // Occasion matching — expanded
         if (intent.occasion && occasionKeywords[intent.occasion]) {
@@ -393,107 +456,148 @@ export async function registerRoutes(
         const catNameById = new Map(allCats.map(c => [c.id, c.name.toLowerCase()]));
         const catIdByName = new Map(allCats.map(c => [c.name.toLowerCase(), c.id]));
 
-        const isCategory = (r: any, names: string[]) => {
-          const catName = catNameById.get(r.categoryId) || "";
-          return names.some(n => catName.includes(n));
+        const slotDefs: { name: string; catNames: string[]; keywords: RegExp; label: string }[] = [
+          { name: "tops", catNames: ["tops"], keywords: /remera|camiseta|tee|camisa|top|polo|musculosa|chaleco|vest|crop|body/i, label: "Superior" },
+          { name: "bottoms", catNames: ["bottoms"], keywords: /pant|jean|cargo|short|pollera|falda|calza|pantalon|pantalón|chino|jogger|bermuda/i, label: "Inferior" },
+          { name: "outerwear", catNames: ["outerwear"], keywords: /campera|jacket|buzo|hoodie|sweater|abrigo|bomber/i, label: "Abrigo" },
+          { name: "footwear", catNames: ["footwear"], keywords: /sneaker|shoe|zapa|bota|boot|sandal|chancla|calzado/i, label: "Calzado" },
+          { name: "accessories", catNames: ["accessories"], keywords: /media|medias|sock|gorra|cap|hat|vincha|muñequera|mochila|bolso/i, label: "Accesorio" },
+        ];
+
+        const colorSynonyms: Record<string, string[]> = {
+          negro: ["negro", "negra", "black"], blanco: ["blanco", "blanca", "white"],
+          gris: ["gris", "grey", "gray"], beige: ["beige", "crudo", "arena"],
+          marron: ["marron", "marrón", "brown", "chocolate"], azul: ["azul", "blue"],
+          rojo: ["rojo", "roja", "red"], verde: ["verde", "green"],
+          rosa: ["rosa", "pink"], celeste: ["celeste"], coral: ["coral"],
+          bordo: ["bordo", "bordó", "burgundy", "borravino"],
+          black: ["negro", "negra", "black"], white: ["blanco", "blanca", "white"],
+          grey: ["gris", "grey"], brown: ["marron", "brown"],
         };
 
-        const topKeywords = /tee|shirt|remera|hoodie|camisa|top|polo|musculosa|camiseta|chaleco|vest/;
-        const bottomKeywords = /pant|jean|cargo|short|pollera|falda|calza|pantalon|pantalón|chino|jogger|bermuda/;
-        const footKeywords = /sneaker|shoe|zapa|bota|boot|sandal|chancla|calzado/;
-        const accessoryKeywords = /media|medias|sock|gorra|cap|hat|vincha|muñequera/;
-
-        const findInResults = (categoryNames: string[], titleRegex: RegExp, exclude: string[]) => {
-          return scoredResults.find(r =>
-            !exclude.includes(r.id) &&
-            (isCategory(r, categoryNames) || r.title.toLowerCase().match(titleRegex))
-          );
+        const extractColorsFromPhrase = (phrase: string): string[] => {
+          const lower = phrase.toLowerCase();
+          const found: string[] = [];
+          for (const [color, syns] of Object.entries(colorSynonyms)) {
+            if (syns.some(s => lower.includes(s))) {
+              for (const s of syns) { if (!found.includes(s)) found.push(s); }
+            }
+          }
+          return found;
         };
 
-        const fetchByCategoryFromDB = async (categoryName: string, colorHints: string[], excludeIds: string[]) => {
-          const catId = catIdByName.get(categoryName);
-          if (!catId) return null;
-          const dbProducts = await storage.getProducts();
-          const colorWords: Record<string, string[]> = {
-            negro: ["negro", "black"], blanco: ["blanco", "white"], gris: ["gris", "grey", "gray"],
-            beige: ["beige", "crudo"], marron: ["marron", "marrón", "brown", "chocolate"],
-            azul: ["azul", "blue"], rojo: ["rojo", "red"], verde: ["verde", "green"],
-            rosa: ["rosa", "pink"], celeste: ["celeste"], coral: ["coral"],
-          };
-          const matchesColor = (p: any) => {
-            if (colorHints.length === 0) return true;
-            const pText = `${p.title} ${p.tags?.map((t: any) => t.tag || t).join(" ") || ""}`.toLowerCase();
-            return colorHints.some(c => {
-              const syns = colorWords[c] || [c];
-              return syns.some(s => pText.includes(s));
-            });
-          };
-          const filtered = dbProducts.filter(p =>
-            p.status === "active" &&
-            p.categoryId === catId &&
-            !excludeIds.includes(p.id) &&
-            p.variants?.some((v: any) => v.stockQty > 0)
-          );
-          const withColor = filtered.filter(matchesColor);
-          const best = withColor.length > 0 ? withColor[0] : filtered[0];
-          if (!best) return null;
-          return {
-            id: best.id, title: best.title, description: best.description,
-            basePrice: Number(best.basePrice), salePrice: best.salePrice ? Number(best.salePrice) : null,
-            currency: best.currency, gender: best.gender, categoryId: best.categoryId,
-            brand: null,
-            images: best.images || [], variants: best.variants || [],
-            tags: best.tags?.map((t: any) => t.tag || t) || [],
-            similarity: 0.5, reasons: [`Complemento de outfit`]
-          };
+        const detectSlot = (phrase: string): typeof slotDefs[number] | null => {
+          const lower = phrase.toLowerCase();
+          for (const slot of slotDefs) {
+            if (slot.keywords.test(lower)) return slot;
+          }
+          return null;
         };
 
-        const usedIds: string[] = [];
-        const usedCatIds: string[] = [];
-        const findInResultsStrict = (categoryNames: string[], titleRegex: RegExp, exclude: string[], excludeCats: string[]) => {
-          return scoredResults.find(r =>
-            !exclude.includes(r.id) &&
-            (!r.categoryId || !excludeCats.includes(r.categoryId)) &&
-            (isCategory(r, categoryNames) || r.title.toLowerCase().match(titleRegex))
-          );
+        const productColorScore = (p: any, colors: string[]): number => {
+          if (colors.length === 0) return 1;
+          const pTitle = p.title.toLowerCase();
+          const pTags = (p.tags || []).map((t: any) => typeof t === 'string' ? t : t.tag || '').join(' ').toLowerCase();
+          let score = 0;
+          for (const c of colors) {
+            if (pTitle.includes(c)) score += 2;
+            else if (pTags.includes(c)) score += 1;
+          }
+          return score;
         };
-        let top = findInResultsStrict(["tops", "top"], topKeywords, usedIds, usedCatIds);
-        if (top) { usedIds.push(top.id); if (top.categoryId) usedCatIds.push(top.categoryId); }
-        let bottom = findInResultsStrict(["bottoms", "bottom"], bottomKeywords, usedIds, usedCatIds);
-        if (bottom) { usedIds.push(bottom.id); if (bottom.categoryId) usedCatIds.push(bottom.categoryId); }
-        let foot = findInResultsStrict(["footwear", "foot", "calzado"], footKeywords, usedIds, usedCatIds);
-        if (foot) { usedIds.push(foot.id); if (foot.categoryId) usedCatIds.push(foot.categoryId); }
-        let accessory = findInResultsStrict(["accessories", "accessory", "accesorios"], accessoryKeywords, usedIds, usedCatIds);
-        if (accessory) { usedIds.push(accessory.id); if (accessory.categoryId) usedCatIds.push(accessory.categoryId); }
+        const productMatchesColors = (p: any, colors: string[]): boolean => {
+          return productColorScore(p, colors) > 0;
+        };
 
-        const targetColors = [...(intent.colors?.primary || []), ...(intent.colors?.secondary || [])];
-        if (!top) {
-          top = await fetchByCategoryFromDB("tops", targetColors, usedIds);
-          if (top) usedIds.push(top.id);
-        }
-        if (!bottom) {
-          bottom = await fetchByCategoryFromDB("bottoms", targetColors, usedIds);
-          if (bottom) usedIds.push(bottom.id);
-        }
-        if (!foot) {
-          foot = await fetchByCategoryFromDB("footwear", targetColors, usedIds);
-          if (foot) usedIds.push(foot.id);
-        }
-        if (!accessory) {
-          accessory = await fetchByCategoryFromDB("accessories", targetColors, usedIds);
-          if (accessory) usedIds.push(accessory.id);
+        const usedIds = new Set<string>();
+        const bundleItems: any[] = [];
+
+        for (const mustItem of (intent.must_include || [])) {
+          const slot = detectSlot(mustItem);
+          if (!slot) continue;
+          const itemColors = extractColorsFromPhrase(mustItem);
+
+          const slotCandidates = scoredResults.filter(r => {
+            if (usedIds.has(r.id)) return false;
+            const catName = catNameById.get(r.categoryId) || "";
+            return slot.catNames.some(n => catName.includes(n)) || r.title.toLowerCase().match(slot.keywords);
+          });
+          slotCandidates.sort((a, b) => productColorScore(b, itemColors) - productColorScore(a, itemColors));
+          let best = slotCandidates[0] || null;
+
+          if (!best) {
+            const catId = catIdByName.get(slot.name);
+            if (catId) {
+              const dbProducts = await storage.getProducts();
+              const filtered = dbProducts.filter(p =>
+                p.status === "active" && p.categoryId === catId &&
+                !usedIds.has(p.id) && p.variants?.some((v: any) => v.stockQty > 0)
+              );
+              const withColor = filtered.filter(p => productMatchesColors(p, itemColors));
+              const chosen = withColor[0] || filtered[0];
+              if (chosen) {
+                best = {
+                  id: chosen.id, title: chosen.title, description: chosen.description,
+                  basePrice: Number(chosen.basePrice), salePrice: chosen.salePrice ? Number(chosen.salePrice) : null,
+                  currency: chosen.currency, gender: chosen.gender, categoryId: chosen.categoryId,
+                  brand: null, images: chosen.images || [], variants: chosen.variants || [],
+                  tags: chosen.tags?.map((t: any) => t.tag || t) || [],
+                  similarity: 0.5, reasons: ["Complemento de outfit"]
+                };
+              }
+            }
+          }
+
+          if (best) {
+            usedIds.add(best.id);
+            bundleItems.push({ ...best, slot: slot.label });
+          }
         }
 
-        const slotItems = [
-          top ? { ...top, slot: "Superior" } : null,
-          bottom ? { ...bottom, slot: "Inferior" } : null,
-          foot ? { ...foot, slot: "Calzado" } : null,
-          accessory ? { ...accessory, slot: "Accesorio" } : null,
-        ].filter(Boolean) as any[];
-        if (slotItems.length >= 2) {
+        const representedSlots = new Set(bundleItems.map(i => i.slot));
+        const complementSlots = slotDefs.filter(s =>
+          !representedSlots.has(s.label) && ["Calzado", "Accesorio"].includes(s.label)
+        );
+        const allColors = [...(intent.colors?.primary || []), ...(intent.colors?.secondary || [])];
+        for (const slot of complementSlots) {
+          const catId = catIdByName.get(slot.name);
+          if (!catId) continue;
+          let found = scoredResults.find(r => {
+            if (usedIds.has(r.id)) return false;
+            const catName = catNameById.get(r.categoryId) || "";
+            return slot.catNames.some(n => catName.includes(n));
+          });
+          if (!found) {
+            const dbProducts = await storage.getProducts();
+            const filtered = dbProducts.filter(p =>
+              p.status === "active" && p.categoryId === catId &&
+              !usedIds.has(p.id) && p.variants?.some((v: any) => v.stockQty > 0)
+            );
+            const withColor = filtered.filter(p => productMatchesColors(p, allColors));
+            const chosen = withColor[0] || filtered[0];
+            if (chosen) {
+              found = {
+                id: chosen.id, title: chosen.title, description: chosen.description,
+                basePrice: Number(chosen.basePrice), salePrice: chosen.salePrice ? Number(chosen.salePrice) : null,
+                currency: chosen.currency, gender: chosen.gender, categoryId: chosen.categoryId,
+                brand: null, images: chosen.images || [], variants: chosen.variants || [],
+                tags: chosen.tags?.map((t: any) => t.tag || t) || [],
+                similarity: 0.5, reasons: ["Complemento de outfit"]
+              };
+            }
+          }
+          if (found) {
+            usedIds.add(found.id);
+            bundleItems.push({ ...found, slot: slot.label });
+          }
+        }
+
+        if (bundleItems.length >= 2) {
+          const slotOrder = ["Superior", "Inferior", "Abrigo", "Calzado", "Accesorio"];
+          bundleItems.sort((a, b) => slotOrder.indexOf(a.slot) - slotOrder.indexOf(b.slot));
           outfitBundles.push({
             title: "Outfit recomendado por Drevo",
-            items: slotItems
+            items: bundleItems
           });
         }
       }
@@ -660,21 +764,23 @@ export async function registerRoutes(
           const rawTags: string[] = Array.isArray(tnp.tags) ? tnp.tags.flatMap((t: string) => t.split(",").map((s: string) => s.trim()).filter(Boolean)) : [];
           const textForTags = `${title} ${description}`.toLowerCase();
           const colorPairs: [string, string[]][] = [
-            ["negro", ["black", "negro"]], ["black", ["black", "negro"]],
-            ["blanco", ["white", "blanco"]], ["white", ["white", "blanco"]],
+            ["negro", ["black", "negro"]], ["negra", ["black", "negro"]], ["black", ["black", "negro"]],
+            ["blanco", ["white", "blanco"]], ["blanca", ["white", "blanco"]], ["white", ["white", "blanco"]],
             ["verde", ["green", "verde"]], ["green", ["green", "verde"]],
             ["azul", ["blue", "azul"]], ["blue", ["blue", "azul"]],
-            ["rojo", ["red", "rojo"]], ["red", ["red", "rojo"]],
+            ["rojo", ["red", "rojo"]], ["roja", ["red", "rojo"]], ["red", ["red", "rojo"]],
             ["rosa", ["pink", "rosa"]], ["pink", ["pink", "rosa"]],
             ["gris", ["grey", "gris"]], ["grey", ["grey", "gris"]], ["gray", ["grey", "gris"]],
             ["naranja", ["orange", "naranja"]], ["orange", ["orange", "naranja"]],
-            ["amarillo", ["yellow", "amarillo"]], ["yellow", ["yellow", "amarillo"]],
-            ["marron", ["brown", "marron"]], ["brown", ["brown", "marron"]],
-            ["beige", ["beige"]], ["crudo", ["beige", "crudo"]],
-            ["celeste", ["lightblue", "celeste"]], ["bordo", ["burgundy", "bordo"]],
-            ["lila", ["purple", "lila"]], ["coral", ["coral"]],
+            ["amarillo", ["yellow", "amarillo"]], ["amarilla", ["yellow", "amarillo"]], ["yellow", ["yellow", "amarillo"]],
+            ["marron", ["brown", "marron"]], ["marrón", ["brown", "marron"]], ["brown", ["brown", "marron"]], ["chocolate", ["brown", "marron"]],
+            ["beige", ["beige"]], ["crudo", ["beige", "crudo"]], ["arena", ["beige", "arena"]],
+            ["celeste", ["lightblue", "celeste"]], ["bordo", ["burgundy", "bordo"]], ["bordó", ["burgundy", "bordo"]], ["borravino", ["burgundy", "bordo"]],
+            ["lila", ["purple", "lila"]], ["violeta", ["purple", "violeta"]], ["coral", ["coral"]],
             ["militar", ["olive", "militar"]], ["lima", ["lime", "verde", "lima"]],
             ["aqua", ["aqua", "verde"]], ["agua", ["aqua", "verde"]],
+            ["dorado", ["gold", "dorado"]], ["plateado", ["silver", "plateado"]],
+            ["melange", ["grey", "gris", "melange"]], ["batik", ["estampado", "batik"]],
           ];
           for (const [keyword, tags] of colorPairs) {
             if (textForTags.includes(keyword)) {
@@ -684,10 +790,12 @@ export async function registerRoutes(
             }
           }
           const typePairs: [RegExp, string][] = [
-            [/remera|camiseta|tee/i, "remera"], [/short/i, "short"], [/pantalon|pantalón/i, "pantalon"],
+            [/remera|camiseta|tee/i, "remera"], [/short\b/i, "short"], [/pantalon|pantalón/i, "pantalon"],
             [/pollera|falda/i, "pollera"], [/calza|legging/i, "calza"], [/campera|jacket/i, "campera"],
-            [/gorra|cap/i, "gorra"], [/media|sock/i, "medias"], [/zapatilla|sneaker/i, "zapatilla"],
+            [/gorra|cap\b/i, "gorra"], [/media|sock/i, "medias"], [/zapatilla|sneaker/i, "zapatilla"],
             [/musculosa|tank/i, "musculosa"], [/vestido|dress/i, "vestido"], [/buzo|hoodie|sudadera/i, "buzo"],
+            [/bermuda/i, "bermuda"], [/jogger/i, "jogger"], [/mochila|backpack/i, "mochila"],
+            [/bolso|bag\b/i, "bolso"], [/neceser/i, "neceser"],
           ];
           for (const [regex, tag] of typePairs) {
             if (regex.test(textForTags) && !rawTags.includes(tag)) rawTags.push(tag);
