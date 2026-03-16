@@ -387,12 +387,11 @@ export async function registerRoutes(
         };
       }).sort((a, b) => b.similarity - a.similarity);
 
-      // Outfit Bundle Composition — uses categoryId with title-based fallback
       const outfitBundles: any[] = [];
-      if (intent.intent_type === "outfit" && scoredResults.length >= 3) {
-        // Load categories for matching
+      if (intent.intent_type === "outfit" && scoredResults.length >= 2) {
         const allCats = await db.select().from(categories);
         const catNameById = new Map(allCats.map(c => [c.id, c.name.toLowerCase()]));
+        const catIdByName = new Map(allCats.map(c => [c.name.toLowerCase(), c.id]));
 
         const isCategory = (r: any, names: string[]) => {
           const catName = catNameById.get(r.categoryId) || "";
@@ -400,32 +399,101 @@ export async function registerRoutes(
         };
 
         const topKeywords = /tee|shirt|remera|hoodie|camisa|top|polo|musculosa|camiseta|chaleco|vest/;
-        const bottomKeywords = /pant|jean|cargo|short|pollera|falda|calza|pantalon|pantalón|chino/;
+        const bottomKeywords = /pant|jean|cargo|short|pollera|falda|calza|pantalon|pantalón|chino|jogger|bermuda/;
         const footKeywords = /sneaker|shoe|zapa|bota|boot|sandal|chancla|calzado/;
-        const accessoryKeywords = /media|medias|sock|gorra|cap|hat|vincha|muñequera|mochila|bolso|bag|cintur/;
+        const accessoryKeywords = /media|medias|sock|gorra|cap|hat|vincha|muñequera/;
 
-        const findItem = (categoryNames: string[], titleRegex: RegExp, exclude: string[]) => {
+        const findInResults = (categoryNames: string[], titleRegex: RegExp, exclude: string[]) => {
           return scoredResults.find(r =>
             !exclude.includes(r.id) &&
             (isCategory(r, categoryNames) || r.title.toLowerCase().match(titleRegex))
           );
         };
 
-        const usedIds: string[] = [];
-        const top = findItem(["tops", "top"], topKeywords, usedIds);
-        if (top) usedIds.push(top.id);
-        const bottom = findItem(["bottoms", "bottom"], bottomKeywords, usedIds);
-        if (bottom) usedIds.push(bottom.id);
-        const foot = findItem(["footwear", "foot", "calzado"], footKeywords, usedIds);
-        if (foot) usedIds.push(foot.id);
-        const accessory = findItem(["accessories", "accessory", "accesorios"], accessoryKeywords, usedIds);
-        if (accessory) usedIds.push(accessory.id);
+        const fetchByCategoryFromDB = async (categoryName: string, colorHints: string[], excludeIds: string[]) => {
+          const catId = catIdByName.get(categoryName);
+          if (!catId) return null;
+          const dbProducts = await storage.getProducts();
+          const colorWords: Record<string, string[]> = {
+            negro: ["negro", "black"], blanco: ["blanco", "white"], gris: ["gris", "grey", "gray"],
+            beige: ["beige", "crudo"], marron: ["marron", "marrón", "brown", "chocolate"],
+            azul: ["azul", "blue"], rojo: ["rojo", "red"], verde: ["verde", "green"],
+            rosa: ["rosa", "pink"], celeste: ["celeste"], coral: ["coral"],
+          };
+          const matchesColor = (p: any) => {
+            if (colorHints.length === 0) return true;
+            const pText = `${p.title} ${p.tags?.map((t: any) => t.tag || t).join(" ") || ""}`.toLowerCase();
+            return colorHints.some(c => {
+              const syns = colorWords[c] || [c];
+              return syns.some(s => pText.includes(s));
+            });
+          };
+          const filtered = dbProducts.filter(p =>
+            p.status === "active" &&
+            p.categoryId === catId &&
+            !excludeIds.includes(p.id) &&
+            p.variants?.some((v: any) => v.stockQty > 0)
+          );
+          const withColor = filtered.filter(matchesColor);
+          const best = withColor.length > 0 ? withColor[0] : filtered[0];
+          if (!best) return null;
+          return {
+            id: best.id, title: best.title, description: best.description,
+            basePrice: Number(best.basePrice), salePrice: best.salePrice ? Number(best.salePrice) : null,
+            currency: best.currency, gender: best.gender, categoryId: best.categoryId,
+            brand: null,
+            images: best.images || [], variants: best.variants || [],
+            tags: best.tags?.map((t: any) => t.tag || t) || [],
+            similarity: 0.5, reasons: [`Complemento de outfit`]
+          };
+        };
 
-        const items = [top, bottom, foot, accessory].filter(Boolean) as any[];
-        if (items.length >= 2) {
+        const usedIds: string[] = [];
+        const usedCatIds: string[] = [];
+        const findInResultsStrict = (categoryNames: string[], titleRegex: RegExp, exclude: string[], excludeCats: string[]) => {
+          return scoredResults.find(r =>
+            !exclude.includes(r.id) &&
+            (!r.categoryId || !excludeCats.includes(r.categoryId)) &&
+            (isCategory(r, categoryNames) || r.title.toLowerCase().match(titleRegex))
+          );
+        };
+        let top = findInResultsStrict(["tops", "top"], topKeywords, usedIds, usedCatIds);
+        if (top) { usedIds.push(top.id); if (top.categoryId) usedCatIds.push(top.categoryId); }
+        let bottom = findInResultsStrict(["bottoms", "bottom"], bottomKeywords, usedIds, usedCatIds);
+        if (bottom) { usedIds.push(bottom.id); if (bottom.categoryId) usedCatIds.push(bottom.categoryId); }
+        let foot = findInResultsStrict(["footwear", "foot", "calzado"], footKeywords, usedIds, usedCatIds);
+        if (foot) { usedIds.push(foot.id); if (foot.categoryId) usedCatIds.push(foot.categoryId); }
+        let accessory = findInResultsStrict(["accessories", "accessory", "accesorios"], accessoryKeywords, usedIds, usedCatIds);
+        if (accessory) { usedIds.push(accessory.id); if (accessory.categoryId) usedCatIds.push(accessory.categoryId); }
+
+        const targetColors = [...(intent.colors?.primary || []), ...(intent.colors?.secondary || [])];
+        if (!top) {
+          top = await fetchByCategoryFromDB("tops", targetColors, usedIds);
+          if (top) usedIds.push(top.id);
+        }
+        if (!bottom) {
+          bottom = await fetchByCategoryFromDB("bottoms", targetColors, usedIds);
+          if (bottom) usedIds.push(bottom.id);
+        }
+        if (!foot) {
+          foot = await fetchByCategoryFromDB("footwear", targetColors, usedIds);
+          if (foot) usedIds.push(foot.id);
+        }
+        if (!accessory) {
+          accessory = await fetchByCategoryFromDB("accessories", targetColors, usedIds);
+          if (accessory) usedIds.push(accessory.id);
+        }
+
+        const slotItems = [
+          top ? { ...top, slot: "Superior" } : null,
+          bottom ? { ...bottom, slot: "Inferior" } : null,
+          foot ? { ...foot, slot: "Calzado" } : null,
+          accessory ? { ...accessory, slot: "Accesorio" } : null,
+        ].filter(Boolean) as any[];
+        if (slotItems.length >= 2) {
           outfitBundles.push({
             title: "Outfit recomendado por Drevo",
-            items: items
+            items: slotItems
           });
         }
       }
