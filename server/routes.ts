@@ -20,10 +20,17 @@ export async function registerRoutes(
   app.get("/auth/tiendanube/start", (req, res) => {
     const clientId = process.env.TIENDANUBE_CLIENT_ID;
     if (!clientId) {
-      return res.status(500).json({ message: "Missing TIENDANUBE_CLIENT_ID" });
+      return res.status(500).send("Falta TIENDANUBE_CLIENT_ID en Secrets");
     }
+    // Use env var if set, otherwise build from request host
+    const redirectUri = process.env.TIENDANUBE_REDIRECT_URI ||
+      `${req.protocol}://${req.get("host")}/auth/tiendanube/callback`;
+
     const state = Math.random().toString(36).substring(7);
-    const authUrl = `https://www.tiendanube.com/apps/${clientId}/authorize?state=${state}`;
+    const params = new URLSearchParams({ state, redirect_uri: redirectUri });
+    const authUrl = `https://www.tiendanube.com/apps/${clientId}/authorize?${params.toString()}`;
+    console.log("[TN OAuth] Redirecting to:", authUrl);
+    console.log("[TN OAuth] redirect_uri:", redirectUri);
     res.redirect(authUrl);
   });
 
@@ -45,43 +52,61 @@ export async function registerRoutes(
 
   app.get("/auth/tiendanube/callback", async (req, res) => {
     const { code, state } = req.query;
+    console.log("[TN Callback] Received. Query params:", req.query);
+
     if (!code) {
-      return res.status(400).json({ message: "Missing authorization code" });
+      console.error("[TN Callback] No code received. Full query:", req.query);
+      return res.redirect(`/connect?error=no_code`);
     }
 
     try {
+      const tokenPayload = {
+        client_id: process.env.TIENDANUBE_CLIENT_ID,
+        client_secret: process.env.TIENDANUBE_CLIENT_SECRET,
+        grant_type: "authorization_code",
+        code: String(code),
+      };
+      console.log("[TN Callback] Exchanging code for token...");
+
       const response = await fetch("https://www.tiendanube.com/apps/authorize/token", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          client_id: process.env.TIENDANUBE_CLIENT_ID,
-          client_secret: process.env.TIENDANUBE_CLIENT_SECRET,
-          grant_type: "authorization_code",
-          code,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(tokenPayload),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        console.error("Tiendanube token exchange failed:", data);
-        return res.status(500).json({ message: "Token exchange failed", error: data });
+      const responseText = await response.text();
+      console.log("[TN Callback] Token response status:", response.status);
+      console.log("[TN Callback] Token response body:", responseText);
+
+      let data: any;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        console.error("[TN Callback] Could not parse token response as JSON");
+        return res.redirect(`/connect?error=invalid_response`);
       }
 
-      const { access_token, user_id } = data; // store_id is often returned as user_id in Tiendanube response
-      
-      // Store in database
+      if (!response.ok || !data.access_token) {
+        console.error("[TN Callback] Token exchange failed:", data);
+        return res.redirect(`/connect?error=token_failed&detail=${encodeURIComponent(JSON.stringify(data))}`);
+      }
+
+      // Tiendanube returns access_token and user_id (= store_id)
+      const { access_token, user_id } = data;
+      console.log("[TN Callback] Success! store_id (user_id):", user_id);
+
+      // Upsert: delete any existing tiendanube integration and insert fresh
+      await db.delete(brandIntegrations).where(eq(brandIntegrations.provider, "tiendanube"));
       await db.insert(brandIntegrations).values({
         provider: "tiendanube",
-        storeId: String(user_id),
+        storeId: user_id ? String(user_id) : null,
         accessToken: access_token,
       });
 
-      res.redirect(`/connect?connected=1&store_id=${user_id}`);
+      res.redirect(`/connect?connected=1&store_id=${user_id ?? ""}`);
     } catch (error) {
-      console.error("Tiendanube callback error:", error);
-      res.redirect(`/connect?error=callback_failed`);
+      console.error("[TN Callback] Unexpected error:", error);
+      res.redirect(`/connect?error=server_error`);
     }
   });
 

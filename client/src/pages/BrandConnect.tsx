@@ -17,6 +17,7 @@ export default function BrandConnect() {
   const searchParams = new URLSearchParams(window.location.search);
   const justConnected = searchParams.get("connected") === "1";
   const connectionError = searchParams.get("error");
+  const errorDetail = searchParams.get("detail");
 
   const [syncResult, setSyncResult] = useState<{ synced: number; errors: string[] } | null>(null);
 
@@ -84,12 +85,23 @@ export default function BrandConnect() {
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3"
+              className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 space-y-1"
             >
-              <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
-              <span className="text-sm text-red-400">
-                Hubo un error al conectar la tienda. Intentá de nuevo.
-              </span>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+                <span className="text-sm font-medium text-red-400">
+                  Error al conectar: <code className="font-mono text-xs">{connectionError}</code>
+                </span>
+              </div>
+              {errorDetail && (
+                <p className="text-xs text-red-400/70 font-mono pl-7 break-all">
+                  {decodeURIComponent(errorDetail)}
+                </p>
+              )}
+              <p className="text-xs text-red-400/70 pl-7">
+                Revisá que la URL de callback en el DevHub de Tiendanube sea exactamente: <br/>
+                <code className="font-mono">{window.location.origin}/auth/tiendanube/callback</code>
+              </p>
             </motion.div>
           )}
 
