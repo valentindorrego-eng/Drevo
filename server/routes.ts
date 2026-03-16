@@ -509,6 +509,26 @@ Reply with ONLY valid JSON, no explanation.`
           return productColorScore(p, colors) > 0;
         };
 
+        const intentGender = intent.gender || null;
+        const productGenderScore = (p: any): number => {
+          if (!intentGender) return 0;
+          const pTitle = p.title.toLowerCase();
+          const pTags = (p.tags || []).map((t: any) => typeof t === 'string' ? t : t.tag || '').join(' ').toLowerCase();
+          const allText = pTitle + ' ' + pTags;
+          const wantsWomen = intentGender === 'women' || intentGender === 'female' || intentGender === 'mujer';
+          const wantsMen = intentGender === 'men' || intentGender === 'male' || intentGender === 'hombre';
+
+          if (wantsWomen) {
+            if (/\b(hombre|men|male|masculin)\b/.test(allText) && !/\b(mujer|women|female|ladies|feminin|dama)\b/.test(allText)) return -15;
+            if (/\b(mujer|women|female|ladies|feminin|dama)\b/.test(allText)) return 5;
+          }
+          if (wantsMen) {
+            if (/\b(mujer|women|female|ladies|feminin|dama)\b/.test(allText) && !/\b(hombre|men|male|masculin)\b/.test(allText)) return -15;
+            if (/\b(hombre|men|male|masculin)\b/.test(allText)) return 5;
+          }
+          return 0;
+        };
+
         const usedIds = new Set<string>();
         const bundleItems: any[] = [];
 
@@ -517,7 +537,19 @@ Reply with ONLY valid JSON, no explanation.`
           if (!slot) continue;
           const itemColors = extractColorsFromPhrase(mustItem);
 
-          const exactTypeWords = mustItem.toLowerCase().match(/remera|camiseta|camisa|musculosa|polo|top|falda|pollera|bermuda|short|pantalon|pantalón|jean|cargo|jogger|calza|campera|buzo|hoodie|sweater|zapatilla|bota|gorra|mochila|bolso|vestido/g) || [];
+          const rawTypeWords = mustItem.toLowerCase().match(/remera|camiseta|camisa|musculosa|polo|top|falda|pollera|bermuda|short|pantalon|pantalón|jean|cargo|jogger|calza|campera|buzo|hoodie|sweater|zapatilla|bota|gorra|mochila|bolso|vestido/g) || [];
+          const synonymMap: Record<string, string[]> = {
+            remera: ["remera", "camiseta", "tee"],
+            camiseta: ["camiseta", "remera", "tee"],
+            falda: ["falda", "pollera"],
+            pollera: ["pollera", "falda"],
+            pantalon: ["pantalon", "pantalón"],
+            "pantalón": ["pantalón", "pantalon"],
+            zapatilla: ["zapatilla", "sneaker", "sneakers"],
+            campera: ["campera", "jacket"],
+            buzo: ["buzo", "hoodie"],
+          };
+          const exactTypeWords = [...new Set(rawTypeWords.flatMap(w => synonymMap[w] || [w]))];
 
           const slotCandidates = scoredResults.filter(r => {
             if (usedIds.has(r.id)) return false;
@@ -527,11 +559,15 @@ Reply with ONLY valid JSON, no explanation.`
           slotCandidates.sort((a, b) => {
             const aTitle = a.title.toLowerCase();
             const bTitle = b.title.toLowerCase();
-            const aExactType = exactTypeWords.some(w => aTitle.includes(w)) ? 10 : 0;
-            const bExactType = exactTypeWords.some(w => bTitle.includes(w)) ? 10 : 0;
+            const aTags = (a.tags || []).map((t: any) => typeof t === 'string' ? t : t.tag || '').join(' ').toLowerCase();
+            const bTags = (b.tags || []).map((t: any) => typeof t === 'string' ? t : t.tag || '').join(' ').toLowerCase();
+            const aExactType = exactTypeWords.some(w => aTitle.includes(w) || aTags.includes(w)) ? 10 : 0;
+            const bExactType = exactTypeWords.some(w => bTitle.includes(w) || bTags.includes(w)) ? 10 : 0;
             const aColor = productColorScore(a, itemColors);
             const bColor = productColorScore(b, itemColors);
-            return (bExactType + bColor) - (aExactType + aColor);
+            const aGender = productGenderScore(a);
+            const bGender = productGenderScore(b);
+            return (bExactType + bColor + bGender) - (aExactType + aColor + aGender);
           });
           let best = slotCandidates[0] || null;
 
@@ -574,16 +610,23 @@ Reply with ONLY valid JSON, no explanation.`
         for (const slot of complementSlots) {
           const catId = catIdByName.get(slot.name);
           if (!catId) continue;
-          let found = scoredResults.find(r => {
+          const compCandidates = scoredResults.filter(r => {
             if (usedIds.has(r.id)) return false;
             const catName = catNameById.get(r.categoryId) || "";
             return slot.catNames.some(n => catName.includes(n));
           });
+          compCandidates.sort((a, b) => {
+            const aScore = productColorScore(a, allColors) + productGenderScore(a);
+            const bScore = productColorScore(b, allColors) + productGenderScore(b);
+            return bScore - aScore;
+          });
+          let found = compCandidates[0] || null;
           if (!found) {
             const dbProducts = await storage.getProducts();
             const filtered = dbProducts.filter(p =>
               p.status === "active" && p.categoryId === catId &&
-              !usedIds.has(p.id) && p.variants?.some((v: any) => v.stockQty > 0)
+              !usedIds.has(p.id) && p.variants?.some((v: any) => v.stockQty > 0) &&
+              productGenderScore(p) >= 0
             );
             const withColor = filtered.filter(p => productMatchesColors(p, allColors));
             const chosen = withColor[0] || filtered[0];
