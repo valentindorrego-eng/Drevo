@@ -95,13 +95,20 @@ export async function registerRoutes(
       const { access_token, user_id } = data;
       console.log("[TN Callback] Success! store_id (user_id):", user_id);
 
-      // Upsert: delete any existing tiendanube integration and insert fresh
-      await db.delete(brandIntegrations).where(eq(brandIntegrations.provider, "tiendanube"));
-      await db.insert(brandIntegrations).values({
-        provider: "tiendanube",
-        storeId: user_id ? String(user_id) : null,
-        accessToken: access_token,
-      });
+      const storeIdStr = user_id ? String(user_id) : null;
+      const existing = await db.select().from(brandIntegrations)
+        .where(sql`provider = 'tiendanube' AND store_id = ${storeIdStr}`);
+      if (existing.length > 0) {
+        await db.update(brandIntegrations)
+          .set({ accessToken: access_token, updatedAt: new Date() })
+          .where(eq(brandIntegrations.id, existing[0].id));
+      } else {
+        await db.insert(brandIntegrations).values({
+          provider: "tiendanube",
+          storeId: storeIdStr,
+          accessToken: access_token,
+        });
+      }
 
       res.redirect(`/connect?connected=1&store_id=${user_id ?? ""}`);
     } catch (error) {

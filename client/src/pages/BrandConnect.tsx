@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Navigation } from "@/components/Navigation";
-import { CheckCircle2, AlertCircle, Loader2, Store, RefreshCw, Plug } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Store, RefreshCw, Plug, Plus } from "lucide-react";
 import { useState } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -16,26 +16,26 @@ interface Integration {
 export default function BrandConnect() {
   const searchParams = new URLSearchParams(window.location.search);
   const justConnected = searchParams.get("connected") === "1";
+  const connectedStoreId = searchParams.get("store_id");
   const connectionError = searchParams.get("error");
   const errorDetail = searchParams.get("detail");
 
-  const [syncResult, setSyncResult] = useState<{ synced: number; errors: string[] } | null>(null);
+  const [syncResults, setSyncResults] = useState<Record<string, { synced: number; errors: string[] }>>({});
 
   const { data, isLoading } = useQuery<{ integrations: Integration[] }>({
     queryKey: ["/api/integrations"],
   });
 
   const integrations = data?.integrations ?? [];
-  const tiendanubeIntegration = integrations.find(i => i.provider === "tiendanube");
-  const isConnected = !!tiendanubeIntegration;
+  const tiendanubeIntegrations = integrations.filter(i => i.provider === "tiendanube");
 
   const syncMutation = useMutation({
     mutationFn: async (integrationId: string) => {
       const res = await apiRequest("POST", `/api/integrations/${integrationId}/sync-products`);
-      return res.json();
+      return { id: integrationId, result: await res.json() };
     },
-    onSuccess: (data) => {
-      setSyncResult(data);
+    onSuccess: ({ id, result }) => {
+      setSyncResults(prev => ({ ...prev, [id]: result }));
       queryClient.invalidateQueries({ queryKey: ["/api/integrations"] });
     },
   });
@@ -55,7 +55,6 @@ export default function BrandConnect() {
           transition={{ duration: 0.5 }}
           className="space-y-10"
         >
-          {/* Header */}
           <div className="space-y-2">
             <p className="text-xs font-medium tracking-widest uppercase text-[#C8FF00]">
               Integraciones
@@ -68,7 +67,6 @@ export default function BrandConnect() {
             </p>
           </div>
 
-          {/* Success / Error banner from OAuth redirect */}
           {justConnected && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
@@ -77,7 +75,7 @@ export default function BrandConnect() {
             >
               <CheckCircle2 className="w-5 h-5 text-[#C8FF00] shrink-0" />
               <span className="text-sm text-[#C8FF00]">
-                ¡Tienda conectada exitosamente! Ahora podés sincronizar tus productos.
+                ¡Tienda {connectedStoreId ? `(ID: ${connectedStoreId})` : ""} conectada exitosamente! Ahora podés sincronizar tus productos.
               </span>
             </motion.div>
           )}
@@ -105,58 +103,30 @@ export default function BrandConnect() {
             </motion.div>
           )}
 
-          {/* Tiendanube Card */}
-          <div className="border border-white/10 rounded-2xl overflow-hidden">
-            {/* Card header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/[0.02]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[#00aeef]/10 flex items-center justify-center">
-                  <Store className="w-5 h-5 text-[#00aeef]" />
+          {tiendanubeIntegrations.length > 0 && tiendanubeIntegrations.map((integration) => (
+            <div key={integration.id} className="border border-white/10 rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/[0.02]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#00aeef]/10 flex items-center justify-center">
+                    <Store className="w-5 h-5 text-[#00aeef]" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Tiendanube</p>
+                    <p className="text-xs text-neutral-500">Store ID: <span className="text-neutral-300 font-mono">{integration.storeId}</span></p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-sm">Tiendanube</p>
-                  <p className="text-xs text-neutral-500">Nuvemshop · Argentina</p>
-                </div>
-              </div>
-
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 text-neutral-500 animate-spin" />
-              ) : isConnected ? (
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#C8FF00] bg-[#C8FF00]/10 px-3 py-1 rounded-full border border-[#C8FF00]/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#C8FF00] inline-block" />
                   Conectado
                 </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-                  <span className="w-1.5 h-1.5 rounded-full bg-neutral-500 inline-block" />
-                  No conectado
-                </span>
-              )}
-            </div>
+              </div>
 
-            {/* Card body */}
-            <div className="px-6 py-5 space-y-4">
-              {isConnected && tiendanubeIntegration?.storeId && (
-                <p className="text-xs text-neutral-500">
-                  Store ID: <span className="text-neutral-300 font-mono">{tiendanubeIntegration.storeId}</span>
-                </p>
-              )}
-
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={handleConnect}
-                  data-testid="button-connect-tiendanube"
-                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white text-black text-sm font-semibold hover:bg-neutral-200 transition-colors"
-                >
-                  <Plug className="w-4 h-4" />
-                  {isConnected ? "Reconectar Tiendanube" : "Conectar Tiendanube"}
-                </button>
-
-                {isConnected && (
+              <div className="px-6 py-5 space-y-4">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
-                    onClick={() => syncMutation.mutate(tiendanubeIntegration!.id)}
+                    onClick={() => syncMutation.mutate(integration.id)}
                     disabled={syncMutation.isPending}
-                    data-testid="button-sync-products"
+                    data-testid={`button-sync-${integration.storeId}`}
                     className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-[#C8FF00]/40 text-[#C8FF00] text-sm font-semibold hover:bg-[#C8FF00]/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {syncMutation.isPending ? (
@@ -166,39 +136,68 @@ export default function BrandConnect() {
                     )}
                     {syncMutation.isPending ? "Sincronizando..." : "Sincronizar productos"}
                   </button>
+                </div>
+
+                {syncResults[integration.id] && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 space-y-1"
+                  >
+                    <p className="text-sm font-medium text-white">Sincronización completada</p>
+                    <p className="text-xs text-neutral-400">
+                      {syncResults[integration.id].synced} producto{syncResults[integration.id].synced !== 1 ? "s" : ""} importado{syncResults[integration.id].synced !== 1 ? "s" : ""}
+                      {syncResults[integration.id].errors.length > 0 && ` · ${syncResults[integration.id].errors.length} errores`}
+                    </p>
+                  </motion.div>
                 )}
               </div>
-
-              {/* Sync result */}
-              {syncResult && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 space-y-1"
-                >
-                  <p className="text-sm font-medium text-white">
-                    Sincronización completada
-                  </p>
-                  <p className="text-xs text-neutral-400">
-                    {syncResult.synced} producto{syncResult.synced !== 1 ? "s" : ""} importado{syncResult.synced !== 1 ? "s" : ""}
-                    {syncResult.errors.length > 0 && ` · ${syncResult.errors.length} errores`}
-                  </p>
-                </motion.div>
-              )}
-
-              {syncMutation.isError && (
-                <p className="text-xs text-red-400 flex items-center gap-1.5">
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  Error al sincronizar. Verificá que la tienda esté conectada correctamente.
-                </p>
-              )}
             </div>
-          </div>
+          ))}
 
-          {/* Info block */}
+          {tiendanubeIntegrations.length === 0 && !isLoading && (
+            <div className="border border-white/10 rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/[0.02]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#00aeef]/10 flex items-center justify-center">
+                    <Store className="w-5 h-5 text-[#00aeef]" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Tiendanube</p>
+                    <p className="text-xs text-neutral-500">Nuvemshop · Argentina</p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 bg-white/5 px-3 py-1 rounded-full border border-white/10">
+                  <span className="w-1.5 h-1.5 rounded-full bg-neutral-500 inline-block" />
+                  No conectado
+                </span>
+              </div>
+              <div className="px-6 py-5">
+                <button
+                  onClick={handleConnect}
+                  data-testid="button-connect-tiendanube"
+                  className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white text-black text-sm font-semibold hover:bg-neutral-200 transition-colors"
+                >
+                  <Plug className="w-4 h-4" />
+                  Conectar Tiendanube
+                </button>
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleConnect}
+            data-testid="button-add-store"
+            className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-dashed border-white/20 text-neutral-400 text-sm font-medium hover:border-white/40 hover:text-white transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Conectar otra tienda de Tiendanube
+          </button>
+
           <div className="text-xs text-neutral-600 space-y-1 leading-relaxed">
             <p>Al conectar tu tienda, DREVO importa tu catálogo y genera embeddings semánticos para cada producto.</p>
             <p>La sincronización es idempotente: podés ejecutarla varias veces sin duplicar productos.</p>
+            <p>Para conectar otra tienda, asegurate de cerrar sesión en Tiendanube primero, o usá una ventana de incógnito.</p>
           </div>
         </motion.div>
       </div>
