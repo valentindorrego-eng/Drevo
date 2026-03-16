@@ -23,7 +23,7 @@ Preferred communication style: Simple, everyday language.
   - `/` — Landing page with hero, search bar, prompt chips
   - `/search?q=...` — AI search results with outfit bundles and product grid
   - `/product/:id` — Product detail page
-  - `/cart` — Placeholder cart (coming soon)
+  - `/cart` — Functional cart with localStorage persistence, quantity controls, and links to buy on the original store
 - **Path Aliases**: `@/` → `client/src/`, `@shared/` → `shared/`, `@assets/` → `attached_assets/`
 
 ### Backend (server/)

@@ -37,6 +37,7 @@ export const products = pgTable("products", {
   status: text("status").default("active"), // 'draft', 'pending', 'active', 'disabled'
   externalProvider: text("external_provider"), // e.g. 'tiendanube'
   externalId: text("external_id"),            // provider's product ID
+  externalUrl: text("external_url"),          // link to buy on the original store
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

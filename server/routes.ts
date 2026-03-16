@@ -364,10 +364,21 @@ export async function registerRoutes(
         try {
           const externalId = String(tnp.id);
           const title = (tnp.name?.es || tnp.name?.pt || tnp.name?.en || Object.values(tnp.name || {})[0] || "Sin nombre") as string;
-          const description = (tnp.description?.es || tnp.description?.pt || tnp.description?.en || Object.values(tnp.description || {})[0] || "") as string;
+          const rawDesc = (tnp.description?.es || tnp.description?.pt || tnp.description?.en || Object.values(tnp.description || {})[0] || "") as string;
+          const description = rawDesc
+            .replace(/<[^>]*>/g, " ")
+            .replace(/&aacute;/gi, "á").replace(/&eacute;/gi, "é").replace(/&iacute;/gi, "í").replace(/&oacute;/gi, "ó").replace(/&uacute;/gi, "ú")
+            .replace(/&ntilde;/gi, "ñ").replace(/&Ntilde;/gi, "Ñ")
+            .replace(/&ldquo;/gi, "\u201C").replace(/&rdquo;/gi, "\u201D").replace(/&laquo;/gi, "\u00AB").replace(/&raquo;/gi, "\u00BB")
+            .replace(/&amp;/gi, "&").replace(/&nbsp;/gi, " ").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
+            .replace(/&#\d+;/g, (m) => { try { return String.fromCharCode(parseInt(m.slice(2, -1))); } catch { return " "; } })
+            .replace(/&[a-z]+;/gi, " ")
+            .replace(/\s+/g, " ").trim();
           const basePrice = String(tnp.variants?.[0]?.price ?? tnp.price ?? "0");
           const salePrice = tnp.variants?.[0]?.promotional_price ?? null;
           const status = tnp.published ? "active" : "disabled";
+          const rawUrl = (tnp.canonical_url || tnp.permalink || null) as string | null;
+          const externalUrl = rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : null;
 
           // Check if product already exists by external_id
           const existing = await db
@@ -381,7 +392,7 @@ export async function registerRoutes(
             productId = existing[0].id;
             await db
               .update(products)
-              .set({ title, description, basePrice, salePrice: salePrice ? String(salePrice) : null, status, updatedAt: new Date() })
+              .set({ title, description, basePrice, salePrice: salePrice ? String(salePrice) : null, status, externalUrl, updatedAt: new Date() })
               .where(eq(products.id, productId));
             // Clear old tags/images/variants for refresh
             await db.delete(productTags).where(eq(productTags.productId, productId));
@@ -390,7 +401,7 @@ export async function registerRoutes(
           } else {
             const [inserted] = await db
               .insert(products)
-              .values({ title, description, basePrice, salePrice: salePrice ? String(salePrice) : null, status, externalProvider: "tiendanube", externalId, currency: "ARS" })
+              .values({ title, description, basePrice, salePrice: salePrice ? String(salePrice) : null, status, externalProvider: "tiendanube", externalId, externalUrl, currency: "ARS" })
               .returning({ id: products.id });
             productId = inserted.id;
           }
@@ -407,7 +418,7 @@ export async function registerRoutes(
             await db.insert(productVariants).values(
               tnp.variants.map((v: any) => ({
                 productId,
-                sizeLabel: [v.values?.[0], v.values?.[1]].filter(Boolean).join(" / ") || "Único",
+                sizeLabel: (Array.isArray(v.values) ? v.values.map((val: any) => typeof val === "object" ? (val.es || val.pt || val.en || Object.values(val)[0] || "") : String(val)).filter(Boolean).join(" / ") : "Único") || "Único",
                 sku: v.sku || null,
                 stockQty: v.stock ?? 0,
               }))
