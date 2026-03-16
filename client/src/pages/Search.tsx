@@ -99,15 +99,23 @@ export default function Search() {
                   <h2 className="text-3xl font-display font-bold tracking-tight">Outfit recomendado por Drevo</h2>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
-                  {searchResults.outfit_bundles[0].items.map((item, idx) => (
-                    <div key={item.id} className="relative group">
-                      <div className="absolute -top-3 left-4 z-10 bg-[#C8FF00] text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl">
-                        {idx === 0 ? 'Superior' : idx === 1 ? 'Inferior' : 'Calzado'}
+                <div className={`grid grid-cols-1 gap-8 relative z-10 ${searchResults.outfit_bundles[0].items.length >= 4 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+                  {searchResults.outfit_bundles[0].items.map((item, idx) => {
+                    const labels = ['Superior', 'Inferior', 'Calzado', 'Accesorio'];
+                    const titleLower = (item.title || "").toLowerCase();
+                    let label = labels[idx] || 'Accesorio';
+                    if (titleLower.match(/media|sock/)) label = 'Medias';
+                    else if (titleLower.match(/gorra|cap|hat|vincha/)) label = 'Accesorio';
+                    else if (idx >= 3) label = 'Accesorio';
+                    return (
+                      <div key={item.id} className="relative group">
+                        <div className="absolute -top-3 left-4 z-10 bg-[#C8FF00] text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl">
+                          {label}
+                        </div>
+                        <ProductCard product={item} />
                       </div>
-                      <ProductCard product={item} />
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 
                 <div className="mt-12 flex justify-center relative z-10">

@@ -372,9 +372,10 @@ export async function registerRoutes(
           return names.some(n => catName.includes(n));
         };
 
-        const topKeywords = /tee|shirt|remera|hoodie|camisa|top|polo|musculosa|camiseta/;
+        const topKeywords = /tee|shirt|remera|hoodie|camisa|top|polo|musculosa|camiseta|chaleco|vest/;
         const bottomKeywords = /pant|jean|cargo|short|pollera|falda|calza|pantalon|pantalón|chino/;
         const footKeywords = /sneaker|shoe|zapa|bota|boot|sandal|chancla|calzado/;
+        const accessoryKeywords = /media|medias|sock|gorra|cap|hat|vincha|muñequera|mochila|bolso|bag|cintur/;
 
         const findItem = (categoryNames: string[], titleRegex: RegExp, exclude: string[]) => {
           return scoredResults.find(r =>
@@ -383,11 +384,17 @@ export async function registerRoutes(
           );
         };
 
-        const top = findItem(["tops", "top"], topKeywords, []);
-        const bottom = findItem(["bottoms", "bottom"], bottomKeywords, [top?.id].filter(Boolean) as string[]);
-        const foot = findItem(["footwear", "foot", "calzado"], footKeywords, [top?.id, bottom?.id].filter(Boolean) as string[]);
+        const usedIds: string[] = [];
+        const top = findItem(["tops", "top"], topKeywords, usedIds);
+        if (top) usedIds.push(top.id);
+        const bottom = findItem(["bottoms", "bottom"], bottomKeywords, usedIds);
+        if (bottom) usedIds.push(bottom.id);
+        const foot = findItem(["footwear", "foot", "calzado"], footKeywords, usedIds);
+        if (foot) usedIds.push(foot.id);
+        const accessory = findItem(["accessories", "accessory", "accesorios"], accessoryKeywords, usedIds);
+        if (accessory) usedIds.push(accessory.id);
 
-        const items = [top, bottom, foot].filter(Boolean) as any[];
+        const items = [top, bottom, foot, accessory].filter(Boolean) as any[];
         if (items.length >= 2) {
           outfitBundles.push({
             title: "Outfit recomendado por Drevo",
