@@ -340,6 +340,26 @@ export async function registerRoutes(
           }
         });
 
+        if (intent.exclude && intent.exclude.length > 0) {
+          for (const excl of intent.exclude) {
+            const exclLower = excl.toLowerCase();
+            if (pText.includes(exclLower)) {
+              score -= 0.25;
+              break;
+            }
+            const exclSynonyms: Record<string, string[]> = {
+              deportiva: ["deportivo", "deportiva", "sport", "padel", "gym", "training", "athletic", "fitness"],
+              formal: ["formal", "elegante", "oficina", "traje"],
+              casual: ["casual", "relax", "everyday"],
+            };
+            const syns = exclSynonyms[exclLower] || [exclLower];
+            if (syns.some(s => pText.includes(s))) {
+              score -= 0.25;
+              break;
+            }
+          }
+        }
+
         // Stock boost
         const hasStock = p.variants.some((v: any) => v.stockQty > 0);
         if (hasStock) score += 0.04;
@@ -604,14 +624,40 @@ export async function registerRoutes(
           for (const [regex, tag] of typePairs) {
             if (regex.test(textForTags) && !rawTags.includes(tag)) rawTags.push(tag);
           }
+          let visionDescription = "";
+          const mainImageUrl = Array.isArray(tnp.images) && tnp.images.length > 0 ? tnp.images[0].src : null;
+          if (openai && mainImageUrl) {
+            try {
+              const visionRes = await openai.chat.completions.create({
+                model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
+                messages: [{
+                  role: "user",
+                  content: [
+                    { type: "text", text: "Analyze this fashion product image. Return ONLY a comma-separated list of attributes: actual visible colors (in Spanish), style (deportivo/casual/formal/urbano/streetwear), pattern (liso/estampado/rayado/etc), gender target (hombre/mujer/unisex), and 2-3 descriptive tags. Example: gris, negro, deportivo, liso, hombre, moderno, athleisure. Be concise, no sentences." },
+                    { type: "image_url", image_url: { url: mainImageUrl, detail: "low" } }
+                  ]
+                }],
+                max_tokens: 100,
+              });
+              visionDescription = visionRes.choices[0]?.message?.content?.trim() || "";
+              if (visionDescription) {
+                const visionTags = visionDescription.split(",").map(t => t.trim().toLowerCase()).filter(t => t.length > 1 && t.length < 30);
+                for (const vt of visionTags) {
+                  if (!rawTags.includes(vt)) rawTags.push(vt);
+                }
+              }
+            } catch (visionErr: any) {
+              console.error(`Vision error for ${title}:`, visionErr.message);
+            }
+          }
+
           if (rawTags.length > 0) {
             await db.insert(productTags).values(rawTags.map(tag => ({ productId, tag })));
           }
 
-          // Generate embedding
           if (openai) {
             try {
-              const textToEmbed = `${title}. ${description} Tags: ${rawTags.join(", ")}`;
+              const textToEmbed = `${title}. ${description} ${visionDescription ? `Visual: ${visionDescription}.` : ""} Tags: ${rawTags.join(", ")}`;
               const embRes = await openai.embeddings.create({
                 model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
                 input: textToEmbed,
