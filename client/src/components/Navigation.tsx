@@ -33,8 +33,8 @@ export function Navigation() {
       )}
     >
       <div className="container mx-auto px-4 flex items-center justify-between">
-        <Link href="/" className="text-2xl font-display font-bold tracking-tighter text-white z-50 relative" data-testid="link-logo">
-          DREVO
+        <Link href="/" className="text-2xl font-display font-bold tracking-tighter z-50 relative" data-testid="link-logo">
+          <span className="text-white">DRE</span><span className="text-[#C8FF00]">VO</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-8">
@@ -59,7 +59,7 @@ export function Navigation() {
             <div className="relative">
               <ShoppingBag className="w-4 h-4" />
               {totalItems > 0 && (
-                <span className="absolute -top-2 -right-2 bg-white text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center" data-testid="text-cart-badge">
+                <span className="absolute -top-2 -right-2 bg-[#C8FF00] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center" data-testid="text-cart-badge">
                   {totalItems > 9 ? "9+" : totalItems}
                 </span>
               )}

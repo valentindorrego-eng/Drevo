@@ -24,8 +24,8 @@
   --muted: 0 0% 10%;
   --muted-foreground: 0 0% 60%;  /* #999999 */
   
-  --accent: 0 0% 15%;
-  --accent-foreground: 0 0% 100%;
+  --accent: 75 100% 50%;            /* Lima #C8FF00 */
+  --accent-foreground: 0 0% 0%;
   
   --destructive: 0 62% 30%;
   --destructive-foreground: 0 0% 100%;

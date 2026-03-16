@@ -1,5 +1,5 @@
-import { db } from "../server/db";
-import { products, productTags, productEmbeddings } from "../shared/schema";
+import { db, pool } from "../server/db";
+import { products, productTags } from "../shared/schema";
 import OpenAI from "openai";
 import { eq } from "drizzle-orm";
 
@@ -11,42 +11,36 @@ async function reindex() {
     process.exit(1);
   }
 
+  const model = process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
   const allProducts = await db.select().from(products).where(eq(products.status, 'active'));
   console.log(`Found ${allProducts.length} active products to reindex.`);
 
   for (const p of allProducts) {
     const pTags = await db.select().from(productTags).where(eq(productTags.productId, p.id));
     const tagsStr = pTags.map(t => t.tag).join(", ");
-    
-    // Create text representation
+
     const textToEmbed = `${p.title}. ${p.description || ""} Tags: ${tagsStr}`;
-    
     console.log(`Generating embedding for: ${p.title}`);
-    
+
     try {
-      const response = await openai.embeddings.create({
-        model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
-        input: textToEmbed,
-      });
-      
+      const response = await openai.embeddings.create({ model, input: textToEmbed });
       const embedding = response.data[0].embedding;
-      
-      // Upsert into product_embeddings using raw query because of vector type handling
       const embeddingStr = `[${embedding.join(',')}]`;
-      
-      await db.execute(`
-        INSERT INTO product_embeddings (product_id, embedding, embedding_model, updated_at)
-        VALUES ('${p.id}', '${embeddingStr}'::vector, '${process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small"}', NOW())
-        ON CONFLICT (product_id) DO UPDATE 
-        SET embedding = EXCLUDED.embedding, embedding_model = EXCLUDED.embedding_model, updated_at = EXCLUDED.updated_at;
-      `);
-      
-      console.log(`✅ Indexed ${p.title}`);
+
+      await pool.query(
+        `INSERT INTO product_embeddings (product_id, embedding, embedding_model, updated_at)
+         VALUES ($1, $2::vector, $3, NOW())
+         ON CONFLICT (product_id) DO UPDATE
+         SET embedding = EXCLUDED.embedding, embedding_model = EXCLUDED.embedding_model, updated_at = EXCLUDED.updated_at`,
+        [p.id, embeddingStr, model]
+      );
+
+      console.log(`Indexed ${p.title}`);
     } catch (e) {
-      console.error(`❌ Failed to index ${p.title}:`, e);
+      console.error(`Failed to index ${p.title}:`, e);
     }
   }
-  
+
   console.log("Reindexing complete.");
   process.exit(0);
 }

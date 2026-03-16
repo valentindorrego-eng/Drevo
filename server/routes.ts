@@ -160,11 +160,52 @@ export async function registerRoutes(
         }
       }
 
-      // Heuristics fallback/refinement
-      if ((query.includes("negro") || query.includes("black")) && !intent.colors.primary.includes("black")) intent.colors.primary.push("black");
-      if ((query.includes("blanco") || query.includes("white")) && !intent.colors.primary.includes("white")) intent.colors.primary.push("white");
-      if (query.includes("noche") || query.includes("night")) intent.occasion = "noche";
-      if (query.includes("minimal") && !intent.style_tags.includes("minimal")) intent.style_tags.push("minimal");
+      // Color heuristics — español/inglés
+      const colorMap: Record<string, string> = {
+        negro: "black", black: "black", blanco: "white", white: "white",
+        rojo: "red", red: "red", azul: "blue", blue: "blue",
+        verde: "green", green: "green", gris: "grey", grey: "grey", gray: "grey",
+        rosa: "pink", pink: "pink", naranja: "orange", orange: "orange",
+        amarillo: "yellow", yellow: "yellow", marron: "brown", brown: "brown",
+        beige: "beige", crudo: "beige", celeste: "lightblue",
+        bordo: "burgundy", burgundy: "burgundy", lila: "purple", purple: "purple",
+        coral: "coral", navy: "navy", militar: "olive", olive: "olive",
+      };
+      for (const [word, normalized] of Object.entries(colorMap)) {
+        if (query.includes(word) && !intent.colors.primary.includes(normalized)) {
+          intent.colors.primary.push(normalized);
+        }
+      }
+
+      // Occasion heuristics
+      const occasionMap: Record<string, string> = {
+        noche: "noche", night: "noche", fiesta: "noche", party: "noche", boliche: "noche",
+        oficina: "oficina", trabajo: "oficina", office: "oficina", reunión: "oficina", reunion: "oficina",
+        gym: "gym", gimnasio: "gym", entreno: "gym", training: "gym", deporte: "gym",
+        casual: "casual", finde: "casual", weekend: "casual", relax: "casual",
+        cena: "cena", dinner: "cena", cocktail: "cena", evento: "cena",
+        viaje: "viaje", travel: "viaje", vacaciones: "viaje",
+        playa: "playa", beach: "playa", verano: "playa",
+      };
+      for (const [word, occ] of Object.entries(occasionMap)) {
+        if (query.includes(word) && !intent.occasion) {
+          intent.occasion = occ;
+        }
+      }
+
+      // Gender heuristics
+      if (!intent.gender) {
+        if (query.match(/\b(hombre|masculino|men|male|él)\b/)) intent.gender = "men";
+        else if (query.match(/\b(mujer|femenino|women|female|ella)\b/)) intent.gender = "women";
+      }
+
+      // Style heuristics
+      const styleKeywords = ["minimal", "minimalista", "elegante", "urbano", "streetwear", "oversize", "clasico", "clásico", "deportivo", "formal", "bohemio", "vintage"];
+      for (const style of styleKeywords) {
+        if (query.includes(style) && !intent.style_tags.includes(style)) {
+          intent.style_tags.push(style);
+        }
+      }
 
       await storage.createSearchQuery(input.query, intent);
 
@@ -211,46 +252,95 @@ export async function registerRoutes(
         candidates = (await storage.getProducts()).filter(p => p.status === 'active').slice(0, 40);
       }
 
-      // Re-ranking with scoring function
+      // Reverse color map for display names
+      const colorDisplayName: Record<string, string> = {
+        black: "negro", white: "blanco", red: "rojo", blue: "azul",
+        green: "verde", grey: "gris", pink: "rosa", orange: "naranja",
+        yellow: "amarillo", brown: "marrón", beige: "beige", lightblue: "celeste",
+        burgundy: "bordó", purple: "lila", coral: "coral", navy: "navy", olive: "militar",
+      };
+
+      // Occasion keyword sets for matching product text
+      const occasionKeywords: Record<string, string[]> = {
+        noche: ["night", "noche", "party", "fiesta", "urban", "elegante", "cocktail", "glamour"],
+        oficina: ["office", "oficina", "formal", "trabajo", "classic", "profesional"],
+        gym: ["gym", "sport", "training", "deporte", "fitness", "running", "padel"],
+        casual: ["casual", "daily", "everyday", "relax", "weekend", "cómodo", "comodo"],
+        cena: ["dinner", "cena", "elegante", "cocktail", "evento", "night"],
+        viaje: ["travel", "viaje", "lightweight", "versatile", "cómodo", "comodo"],
+        playa: ["beach", "playa", "summer", "verano", "swim", "sol"],
+      };
+
+      // Re-ranking with improved scoring
       const scoredResults = candidates.map(p => {
         const similarity = similarities.get(p.id) || 0.5;
-        let score = similarity * 0.65;
+        let score = similarity * 0.60;
         const reasons: string[] = [];
 
-        // Color Boosts
         const pText = `${p.title} ${p.description} ${p.tags.map((t: any) => t.tag).join(" ")}`.toLowerCase();
+
+        // Color matching — check all color synonyms
+        const allColorWords: Record<string, string[]> = {
+          black: ["black", "negro"], white: ["white", "blanco"], red: ["red", "rojo"],
+          blue: ["blue", "azul"], green: ["green", "verde"], grey: ["grey", "gray", "gris"],
+          pink: ["pink", "rosa"], orange: ["orange", "naranja"], yellow: ["yellow", "amarillo"],
+          brown: ["brown", "marron", "marrón"], beige: ["beige", "crudo"], lightblue: ["celeste", "light blue"],
+          burgundy: ["burgundy", "bordo", "bordó"], purple: ["purple", "lila", "violeta"],
+          coral: ["coral"], navy: ["navy"], olive: ["olive", "militar"],
+        };
+
         intent.colors.primary.forEach((color: string) => {
-          const colorEs = color === "black" ? "negro" : color === "white" ? "blanco" : color;
-          if (pText.includes(color) || pText.includes(colorEs)) {
+          const synonyms = allColorWords[color] || [color];
+          if (synonyms.some(s => pText.includes(s))) {
             score += 0.15;
-            reasons.push(`Color ${colorEs} ideal`);
-          } else {
-            // Conflicts
-            if (color === "black" && (pText.includes("white") || pText.includes("blanco"))) score -= 0.20;
-            if (color === "white" && (pText.includes("black") || pText.includes("negro"))) score -= 0.20;
+            reasons.push(`Color ${colorDisplayName[color] || color}`);
           }
         });
 
-        // Occasion Boost
-        if (intent.occasion === "noche") {
-          const nightKeywords = ["night", "noche", "party", "fiesta", "urban", "minimal", "elegante"];
-          if (nightKeywords.some(kw => pText.includes(kw))) {
-            score += 0.08;
-            reasons.push("Estilo nocturno");
+        // Occasion matching — expanded
+        if (intent.occasion && occasionKeywords[intent.occasion]) {
+          const keywords = occasionKeywords[intent.occasion];
+          if (keywords.some(kw => pText.includes(kw))) {
+            score += 0.10;
+            reasons.push(`Ideal para ${intent.occasion}`);
           }
         }
 
-        // Style Boost
+        // Gender matching
+        if (intent.gender && p.gender) {
+          if (p.gender === intent.gender || p.gender === "unisex") {
+            score += 0.05;
+          } else {
+            score -= 0.15;
+          }
+        }
+
+        // Budget matching
+        const productPrice = Number(p.salePrice || p.basePrice);
+        if (intent.budget?.max && productPrice > intent.budget.max) {
+          score -= 0.10;
+        }
+        if (intent.budget?.min && intent.budget?.max && productPrice >= intent.budget.min && productPrice <= intent.budget.max) {
+          score += 0.05;
+          reasons.push("Dentro de tu presupuesto");
+        }
+
+        // Style matching
         intent.style_tags.forEach((style: string) => {
           if (pText.includes(style.toLowerCase())) {
-            score += 0.05;
-            reasons.push(`Vibe ${style}`);
+            score += 0.06;
+            reasons.push(`Estilo ${style}`);
           }
         });
 
-        // Stock Boost
+        // Stock boost
         const hasStock = p.variants.some((v: any) => v.stockQty > 0);
-        if (hasStock) score += 0.05;
+        if (hasStock) score += 0.04;
+
+        // Category matching from preferred_categories
+        if (intent.preferred_categories?.length > 0 && p.categoryId) {
+          // We'll use this for outfit bundling below
+        }
 
         return {
           id: p.id,
@@ -259,26 +349,48 @@ export async function registerRoutes(
           basePrice: Number(p.basePrice),
           salePrice: p.salePrice ? Number(p.salePrice) : null,
           currency: p.currency,
+          gender: p.gender,
+          categoryId: p.categoryId,
           brand: p.brand ? { name: p.brand.name, slug: p.brand.slug } : null,
           images: p.images.map((img: any) => ({ url: img.url, position: img.position })),
           variants: p.variants.map((v: any) => ({ sizeLabel: v.sizeLabel, stockQty: v.stockQty })),
           tags: p.tags.map((t: any) => t.tag),
-          similarity: score,
-          reasons: reasons.slice(0, 3)
+          similarity: Math.max(0, Math.min(1, score)),
+          reasons: [...new Set(reasons)].slice(0, 3)
         };
       }).sort((a, b) => b.similarity - a.similarity);
 
-      // Outfit Bundle Composition
-      const outfitBundles = [];
+      // Outfit Bundle Composition — uses categoryId with title-based fallback
+      const outfitBundles: any[] = [];
       if (intent.intent_type === "outfit" && scoredResults.length >= 3) {
-        const top = scoredResults.find(r => r.title.toLowerCase().match(/tee|shirt|remera|hoodie|camisa|top/));
-        const bottom = scoredResults.find(r => r.id !== top?.id && r.title.toLowerCase().match(/pant|jean|cargo|short|pollera/));
-        const foot = scoredResults.find(r => r.id !== top?.id && r.id !== bottom?.id && r.title.toLowerCase().match(/sneaker|shoe|zapa|bota/));
-        
+        // Load categories for matching
+        const allCats = await db.select().from(categories);
+        const catNameById = new Map(allCats.map(c => [c.id, c.name.toLowerCase()]));
+
+        const isCategory = (r: any, names: string[]) => {
+          const catName = catNameById.get(r.categoryId) || "";
+          return names.some(n => catName.includes(n));
+        };
+
+        const topKeywords = /tee|shirt|remera|hoodie|camisa|top|polo|musculosa|camiseta/;
+        const bottomKeywords = /pant|jean|cargo|short|pollera|falda|calza|pantalon|pantalón|chino/;
+        const footKeywords = /sneaker|shoe|zapa|bota|boot|sandal|chancla|calzado/;
+
+        const findItem = (categoryNames: string[], titleRegex: RegExp, exclude: string[]) => {
+          return scoredResults.find(r =>
+            !exclude.includes(r.id) &&
+            (isCategory(r, categoryNames) || r.title.toLowerCase().match(titleRegex))
+          );
+        };
+
+        const top = findItem(["tops", "top"], topKeywords, []);
+        const bottom = findItem(["bottoms", "bottom"], bottomKeywords, [top?.id].filter(Boolean) as string[]);
+        const foot = findItem(["footwear", "foot", "calzado"], footKeywords, [top?.id, bottom?.id].filter(Boolean) as string[]);
+
         const items = [top, bottom, foot].filter(Boolean) as any[];
         if (items.length >= 2) {
           outfitBundles.push({
-            title: "✨ Outfit recomendado por Drevo",
+            title: "Outfit recomendado por Drevo",
             items: items
           });
         }
@@ -500,15 +612,43 @@ async function seedDatabase() {
   const existingProducts = await db.select().from(products);
   if (existingProducts.length > 5) return;
 
-  const cats = await db.select().from(categories);
+  // Seed categories if empty
+  let cats = await db.select().from(categories);
+  if (cats.length === 0) {
+    await db.insert(categories).values([
+      { name: "Tops" },
+      { name: "Bottoms" },
+      { name: "Footwear" },
+      { name: "Outerwear" },
+      { name: "Accessories" },
+      { name: "Dresses" },
+    ]);
+    cats = await db.select().from(categories);
+    console.log("Seeded categories:", cats.map(c => c.name).join(", "));
+  }
+
+  // Seed brands if empty
+  let b = await db.select().from(brands);
+  if (b.length === 0) {
+    await db.insert(brands).values([
+      { name: "DREVO Selection", slug: "drevo-selection", country: "AR", status: "approved" },
+      { name: "Studio Noir", slug: "studio-noir", country: "AR", status: "approved" },
+    ]);
+    b = await db.select().from(brands);
+    console.log("Seeded brands:", b.map(br => br.name).join(", "));
+  }
+
   const topsId = cats.find(c => c.name === "Tops")?.id;
   const bottomsId = cats.find(c => c.name === "Bottoms")?.id;
   const footId = cats.find(c => c.name === "Footwear")?.id;
   const outerId = cats.find(c => c.name === "Outerwear")?.id;
-  
-  const b = await db.select().from(brands);
+
+  if (!b[0]) {
+    console.error("Seed: No brands available. Skipping product seed.");
+    return;
+  }
   const brand1 = b[0].id;
-  const brand2 = b[1].id;
+  const brand2 = b[1]?.id || b[0].id;
 
   const newProds = [
     { brandId: brand1, categoryId: topsId, title: "Black Oversized Tee", description: "Heavy cotton black tee for a minimal night look.", basePrice: "30.00" },

@@ -51,7 +51,7 @@ export default function Search() {
               animate={{ opacity: 1, y: 0 }}
               className="mt-4 p-4 bg-white/5 border border-white/5 rounded-lg"
             >
-              <div className="flex items-center gap-2 mb-2 text-yellow-200">
+              <div className="flex items-center gap-2 mb-2 text-[#C8FF00]">
                 <Sparkles className="w-4 h-4" />
                 <span className="text-sm font-bold uppercase tracking-wider">Intención detectada</span>
               </div>
@@ -73,7 +73,7 @@ export default function Search() {
 
         {isPending ? (
           <div className="flex flex-col items-center justify-center py-32 space-y-6">
-            <Loader2 className="w-10 h-10 text-white animate-spin" />
+            <Loader2 className="w-10 h-10 text-[#C8FF00] animate-spin" />
             <p className="text-neutral-500 animate-pulse font-display">Curando selección...</p>
           </div>
         ) : searchResults ? (
@@ -87,20 +87,20 @@ export default function Search() {
                 className="bg-neutral-900/40 border border-white/10 p-8 rounded-2xl relative overflow-hidden"
               >
                 <div className="absolute top-0 right-0 p-8 opacity-10">
-                  <Sparkles className="w-32 h-32 text-white" />
+                  <Sparkles className="w-32 h-32 text-[#C8FF00]" />
                 </div>
-                
+
                 <div className="flex items-center gap-3 mb-8 relative z-10">
-                  <div className="bg-yellow-200/10 p-2 rounded-lg">
-                    <Sparkles className="w-6 h-6 text-yellow-200" />
+                  <div className="bg-[#C8FF00]/10 p-2 rounded-lg">
+                    <Sparkles className="w-6 h-6 text-[#C8FF00]" />
                   </div>
-                  <h2 className="text-3xl font-display font-bold tracking-tight">✨ Outfit recomendado por Drevo</h2>
+                  <h2 className="text-3xl font-display font-bold tracking-tight">Outfit recomendado por Drevo</h2>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative z-10">
                   {searchResults.outfit_bundles[0].items.map((item, idx) => (
                     <div key={item.id} className="relative group">
-                      <div className="absolute -top-3 left-4 z-10 bg-white text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl">
+                      <div className="absolute -top-3 left-4 z-10 bg-[#C8FF00] text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl">
                         {idx === 0 ? 'Superior' : idx === 1 ? 'Inferior' : 'Calzado'}
                       </div>
                       <ProductCard product={item} />
@@ -109,7 +109,7 @@ export default function Search() {
                 </div>
                 
                 <div className="mt-12 flex justify-center relative z-10">
-                  <button className="flex items-center gap-3 bg-white text-black px-10 py-4 rounded-full font-bold hover:bg-neutral-200 transition-all hover:scale-105 active:scale-95 shadow-2xl">
+                  <button className="flex items-center gap-3 bg-[#C8FF00] text-black px-10 py-4 rounded-full font-bold hover:bg-[#A3D600] transition-all hover:scale-105 active:scale-95 shadow-2xl">
                     <ShoppingBag className="w-5 h-5" />
                     Comprar Look Completo
                   </button>

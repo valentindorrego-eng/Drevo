@@ -36,14 +36,14 @@ export default function Landing() {
             transition={{ duration: 0.6 }}
             className="space-y-4"
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 text-xs font-medium text-neutral-300 mb-4">
-              <Sparkles className="w-3 h-3 text-yellow-200" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#C8FF00]/20 bg-[#C8FF00]/5 text-xs font-medium text-[#C8FF00] mb-4">
+              <Sparkles className="w-3 h-3" />
               <span>Fashion Intelligence Engine</span>
             </div>
-            
+
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold tracking-tighter leading-[0.9]">
               Encontrá ropa <br className="hidden md:block"/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-neutral-400 to-white">con intención.</span>
+              <span className="text-[#C8FF00]">con intención.</span>
             </h1>
             
             <p className="text-lg md:text-xl text-neutral-400 max-w-2xl mx-auto font-light leading-relaxed">
@@ -72,7 +72,7 @@ export default function Landing() {
                 />
                 <button
                   type="submit"
-                  className="bg-white text-black p-3 rounded-md hover:bg-neutral-200 transition-colors font-medium flex items-center gap-2"
+                  className="bg-[#C8FF00] text-black p-3 rounded-md hover:bg-[#A3D600] transition-colors font-medium flex items-center gap-2"
                 >
                   <span className="hidden sm:inline">Buscar</span>
                   <ArrowRight className="w-4 h-4" />
@@ -86,7 +86,7 @@ export default function Landing() {
                 <button
                   key={i}
                   onClick={() => setLocation(`/search?q=${encodeURIComponent(ex)}`)}
-                  className="px-4 py-2 text-sm bg-white/5 border border-white/5 rounded-full text-neutral-400 hover:text-white hover:border-white/20 hover:bg-white/10 transition-all duration-300"
+                  className="px-4 py-2 text-sm bg-white/5 border border-white/5 rounded-full text-neutral-400 hover:text-[#C8FF00] hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/5 transition-all duration-300"
                 >
                   {ex}
                 </button>

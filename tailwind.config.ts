@@ -82,6 +82,11 @@ export default {
           offline: "rgb(156 163 175)",
         },
       },
+      // DREVO brand color
+      lima: {
+        DEFAULT: "#C8FF00",
+        dark: "#A3D600",
+      },
       fontFamily: {
         sans: ["var(--font-sans)"],
         serif: ["var(--font-serif)"],
