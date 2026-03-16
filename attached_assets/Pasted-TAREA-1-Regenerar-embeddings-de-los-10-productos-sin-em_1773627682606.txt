@@ -1,0 +1,50 @@
+TAREA 1 — Regenerar embeddings de los 10 productos sin embedding
+Ejecutá el script existente:
+npx tsx scripts/reindex.ts
+Verificá que después de ejecutarlo los 15 productos tengan embeddings en la tabla product_embeddings. Confirmame con una query:
+sqlSELECT COUNT(*) FROM product_embeddings;
+El resultado debe ser 15. Si el script falla, mostrá el error completo.
+
+TAREA 2 — Crear la página de integración con Tiendanube
+Necesito una nueva página en el frontend: client/src/pages/BrandConnect.tsx
+Debe tener:
+
+Una pantalla simple con fondo negro, tipografía blanca, acento lima (#C8FF00)
+Título: "Conectá tu tienda"
+Subtítulo: "Conectá tu catálogo de Tiendanube para que tus productos aparezcan en DREVO"
+Un botón que al hacer click llame a GET /auth/tiendanube/start y redirija al usuario al flujo OAuth de Tiendanube
+Una sección de estado que muestre si ya hay una tienda conectada (consultando GET /api/integrations — creá ese endpoint si no existe)
+
+Agregá la ruta /connect en el router del cliente apuntando a esta página.
+
+TAREA 3 — Implementar el sync de productos desde Tiendanube
+Después de que el OAuth funcione y tengamos un access_token real en brand_integrations, necesitamos:
+Backend: POST /api/integrations/:integrationId/sync-products
+El endpoint debe:
+
+Buscar la integración en DB por integrationId y obtener access_token y store_id
+Llamar a la API de Tiendanube: GET https://api.tiendanube.com/v1/{store_id}/products
+
+Header: Authentication: bearer {access_token}
+Header: User-Agent: DREVO (valentin@drevo.app)
+
+
+Por cada producto de Tiendanube:
+
+Mapearlo al schema de products de nuestra DB
+Insertarlo o actualizarlo (upsert por external_id)
+Generar embedding con OpenAI text-embedding-3-small para name + description
+Guardarlo en product_embeddings
+
+
+Devolver { synced: N, errors: [] }
+
+Mostrá el código completo antes de implementarlo para que lo revise.
+
+Orden de ejecución:
+
+Empezá por TAREA 1 — es la más rápida y mejora la búsqueda ahora mismo
+Luego TAREA 2 — necesitamos la UI para poder probar el OAuth
+Luego TAREA 3 — el sync es el cierre del loop completo
+
+No avances a la siguiente tarea sin confirmar que la anterior funciona.

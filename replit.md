@@ -56,6 +56,7 @@ Preferred communication style: Simple, everyday language.
   - `product_tags` — Freeform tags per product (used for search matching)
   - `product_embeddings` — Vector embeddings (pgvector) per product for semantic search
   - `search_queries` — Log of user search queries with extracted intent
+  - `brand_integrations` — OAuth tokens for connected stores (Tiendanube)
   - `users` — Basic user table (minimal for MVP)
 - **Vector Search**: pgvector extension with a `match_products` SQL RPC function for cosine similarity search
 - **Seeding**: Application auto-seeds dummy brands, products, categories, variants, tags, and images on startup

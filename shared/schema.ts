@@ -35,6 +35,8 @@ export const products = pgTable("products", {
   salePrice: numeric("sale_price"),
   currency: text("currency").default("USD"),
   status: text("status").default("active"), // 'draft', 'pending', 'active', 'disabled'
+  externalProvider: text("external_provider"), // e.g. 'tiendanube'
+  externalId: text("external_id"),            // provider's product ID
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

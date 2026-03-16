@@ -27,6 +27,22 @@ export async function registerRoutes(
     res.redirect(authUrl);
   });
 
+  // Get all integrations (for frontend status check)
+  app.get("/api/integrations", async (req, res) => {
+    try {
+      const integrations = await db.select({
+        id: brandIntegrations.id,
+        provider: brandIntegrations.provider,
+        storeId: brandIntegrations.storeId,
+        createdAt: brandIntegrations.createdAt,
+      }).from(brandIntegrations);
+      res.json({ integrations });
+    } catch (error) {
+      console.error("Error fetching integrations:", error);
+      res.status(500).json({ message: "Error al obtener integraciones" });
+    }
+  });
+
   app.get("/auth/tiendanube/callback", async (req, res) => {
     const { code, state } = req.query;
     if (!code) {
@@ -62,10 +78,10 @@ export async function registerRoutes(
         accessToken: access_token,
       });
 
-      res.json({ success: true, store_id: user_id });
+      res.redirect(`/connect?connected=1&store_id=${user_id}`);
     } catch (error) {
       console.error("Tiendanube callback error:", error);
-      res.status(500).json({ message: "Internal server error during callback" });
+      res.redirect(`/connect?error=callback_failed`);
     }
   });
 
@@ -267,6 +283,157 @@ export async function registerRoutes(
 
   app.post(api.admin.reindex.path, async (req, res) => {
     res.status(200).json({ success: true, message: "Reindexing triggered via script" });
+  });
+
+  // Tiendanube product sync
+  app.post("/api/integrations/:integrationId/sync-products", async (req, res) => {
+    const { integrationId } = req.params;
+
+    try {
+      const [integration] = await db
+        .select()
+        .from(brandIntegrations)
+        .where(eq(brandIntegrations.id, integrationId));
+
+      if (!integration) {
+        return res.status(404).json({ message: "Integración no encontrada" });
+      }
+
+      if (!integration.storeId || !integration.accessToken) {
+        return res.status(400).json({ message: "La integración no tiene store_id o access_token" });
+      }
+
+      const { storeId, accessToken } = integration;
+      const headers = {
+        Authentication: `bearer ${accessToken}`,
+        "User-Agent": "DREVO (valentin@drevo.app)",
+        "Content-Type": "application/json",
+      };
+
+      // Fetch all pages of products
+      const tnProducts: any[] = [];
+      let page = 1;
+      while (true) {
+        const resp = await fetch(
+          `https://api.tiendanube.com/v1/${storeId}/products?per_page=200&page=${page}`,
+          { headers }
+        );
+        if (!resp.ok) {
+          const errText = await resp.text();
+          console.error(`Tiendanube API error (page ${page}):`, resp.status, errText);
+          break;
+        }
+        const batch = await resp.json();
+        if (!Array.isArray(batch) || batch.length === 0) break;
+        tnProducts.push(...batch);
+        if (batch.length < 200) break;
+        page++;
+      }
+
+      console.log(`[Tiendanube sync] Found ${tnProducts.length} products in store ${storeId}`);
+
+      let synced = 0;
+      const errors: string[] = [];
+
+      for (const tnp of tnProducts) {
+        try {
+          const externalId = String(tnp.id);
+          const title = (tnp.name?.es || tnp.name?.pt || tnp.name?.en || Object.values(tnp.name || {})[0] || "Sin nombre") as string;
+          const description = (tnp.description?.es || tnp.description?.pt || tnp.description?.en || Object.values(tnp.description || {})[0] || "") as string;
+          const basePrice = String(tnp.variants?.[0]?.price ?? tnp.price ?? "0");
+          const salePrice = tnp.variants?.[0]?.promotional_price ?? null;
+          const status = tnp.published ? "active" : "disabled";
+
+          // Check if product already exists by external_id
+          const existing = await db
+            .select({ id: products.id })
+            .from(products)
+            .where(sql`external_provider = 'tiendanube' AND external_id = ${externalId}`);
+
+          let productId: string;
+
+          if (existing.length > 0) {
+            productId = existing[0].id;
+            await db
+              .update(products)
+              .set({ title, description, basePrice, salePrice: salePrice ? String(salePrice) : null, status, updatedAt: new Date() })
+              .where(eq(products.id, productId));
+            // Clear old tags/images/variants for refresh
+            await db.delete(productTags).where(eq(productTags.productId, productId));
+            await db.delete(productImages).where(eq(productImages.productId, productId));
+            await db.delete(productVariants).where(eq(productVariants.productId, productId));
+          } else {
+            const [inserted] = await db
+              .insert(products)
+              .values({ title, description, basePrice, salePrice: salePrice ? String(salePrice) : null, status, externalProvider: "tiendanube", externalId, currency: "ARS" })
+              .returning({ id: products.id });
+            productId = inserted.id;
+          }
+
+          // Images
+          if (Array.isArray(tnp.images) && tnp.images.length > 0) {
+            await db.insert(productImages).values(
+              tnp.images.slice(0, 5).map((img: any, i: number) => ({ productId, url: img.src, position: i }))
+            );
+          }
+
+          // Variants
+          if (Array.isArray(tnp.variants) && tnp.variants.length > 0) {
+            await db.insert(productVariants).values(
+              tnp.variants.map((v: any) => ({
+                productId,
+                sizeLabel: [v.values?.[0], v.values?.[1]].filter(Boolean).join(" / ") || "Único",
+                sku: v.sku || null,
+                stockQty: v.stock ?? 0,
+              }))
+            );
+          } else {
+            await db.insert(productVariants).values({ productId, sizeLabel: "Único", stockQty: 0 });
+          }
+
+          // Tags — from tnp.tags + color inference from title
+          const rawTags: string[] = Array.isArray(tnp.tags) ? tnp.tags.flatMap((t: string) => t.split(",").map((s: string) => s.trim()).filter(Boolean)) : [];
+          const titleLower = title.toLowerCase();
+          if (titleLower.includes("negro") || titleLower.includes("black")) rawTags.push("black", "negro");
+          if (titleLower.includes("blanco") || titleLower.includes("white")) rawTags.push("white", "blanco");
+          if (rawTags.length > 0) {
+            await db.insert(productTags).values(rawTags.map(tag => ({ productId, tag })));
+          }
+
+          // Generate embedding
+          if (openai) {
+            try {
+              const textToEmbed = `${title}. ${description} Tags: ${rawTags.join(", ")}`;
+              const embRes = await openai.embeddings.create({
+                model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+                input: textToEmbed,
+              });
+              const embeddingStr = `[${embRes.data[0].embedding.join(",")}]`;
+              await pool.query(
+                `INSERT INTO product_embeddings (product_id, embedding, embedding_model, updated_at)
+                 VALUES ($1, $2::vector, $3, NOW())
+                 ON CONFLICT (product_id) DO UPDATE
+                 SET embedding = EXCLUDED.embedding, embedding_model = EXCLUDED.embedding_model, updated_at = EXCLUDED.updated_at`,
+                [productId, embeddingStr, process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small"]
+              );
+            } catch (embErr: any) {
+              console.error(`Embedding error for ${title}:`, embErr.message);
+            }
+          }
+
+          synced++;
+        } catch (productErr: any) {
+          console.error(`Error syncing product ${tnp.id}:`, productErr.message);
+          errors.push(`Producto ${tnp.id}: ${productErr.message}`);
+        }
+      }
+
+      console.log(`[Tiendanube sync] Completed: ${synced} synced, ${errors.length} errors`);
+      res.json({ synced, errors, store_id: storeId });
+    } catch (err: any) {
+      console.error("Sync error:", err);
+      res.status(500).json({ message: "Error al sincronizar productos", error: err.message });
+    }
   });
 
   seedDatabase().catch(console.error);

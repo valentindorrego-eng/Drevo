@@ -8,6 +8,7 @@ import Landing from "@/pages/Landing";
 import Search from "@/pages/Search";
 import ProductDetail from "@/pages/ProductDetail";
 import Cart from "@/pages/Cart";
+import BrandConnect from "@/pages/BrandConnect";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/search" component={Search} />
       <Route path="/product/:id" component={ProductDetail} />
       <Route path="/cart" component={Cart} />
+      <Route path="/connect" component={BrandConnect} />
       <Route component={NotFound} />
     </Switch>
   );
