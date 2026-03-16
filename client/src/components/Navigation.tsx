@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Search, Menu, X } from "lucide-react";
+import { ShoppingBag, Menu, X, Plug } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,7 @@ export function Navigation() {
   const links = [
     { href: "/", label: "Explorar" },
     { href: "/search", label: "Buscar" },
+    { href: "/connect", label: "Conectar tienda" },
     { href: "/cart", label: "Carrito" },
   ];
 
@@ -42,6 +43,13 @@ export function Navigation() {
             location === "/search" ? "text-white" : "text-neutral-400"
           )}>
             Búsqueda AI
+          </Link>
+          <Link href="/connect" className={cn(
+            "text-sm font-medium transition-colors hover:text-white flex items-center gap-1.5",
+            location === "/connect" ? "text-white" : "text-neutral-400"
+          )}>
+            <Plug className="w-3.5 h-3.5" />
+            <span>Conectar tienda</span>
           </Link>
           <Link href="/cart" className={cn(
             "text-sm font-medium transition-colors hover:text-white flex items-center gap-2",
