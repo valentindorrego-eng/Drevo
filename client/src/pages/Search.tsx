@@ -24,7 +24,9 @@ export default function Search() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.trim()) {
-      setLocation(`/search?q=${encodeURIComponent(inputValue)}`);
+      const newQuery = inputValue.trim();
+      setLocation(`/search?q=${encodeURIComponent(newQuery)}`);
+      search({ query: newQuery });
     }
   };
 
