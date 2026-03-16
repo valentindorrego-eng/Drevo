@@ -486,6 +486,9 @@ export async function registerRoutes(
       let synced = 0;
       const errors: string[] = [];
 
+      const allCatsForSync = await db.select().from(categories);
+      const catMap = Object.fromEntries(allCatsForSync.map(c => [c.name.toLowerCase(), c.id]));
+
       for (const tnp of tnProducts) {
         try {
           const externalId = String(tnp.id);
@@ -514,20 +517,33 @@ export async function registerRoutes(
 
           let productId: string;
 
+          const titleLowerCat = title.toLowerCase();
+          let inferredCategoryId: string | null = null;
+          if (/remera|camiseta|tee|top|polo|musculosa|camisa|tank|chaleco|vest|crop|body/i.test(titleLowerCat)) {
+            inferredCategoryId = catMap["tops"] || null;
+          } else if (/pantalon|pantalón|jean|cargo|short|pollera|falda|calza|legging|jogger|bermuda/i.test(titleLowerCat)) {
+            inferredCategoryId = catMap["bottoms"] || null;
+          } else if (/campera|jacket|buzo|hoodie|sweater|abrigo|anorak|rompeviento|bomber|parka/i.test(titleLowerCat)) {
+            inferredCategoryId = catMap["outerwear"] || null;
+          } else if (/zapatilla|sneaker|bota|boot|sandal|zapato|shoe|ojotas|chancleta/i.test(titleLowerCat)) {
+            inferredCategoryId = catMap["footwear"] || null;
+          } else if (/media|sock|gorra|cap|hat|vincha|muñequera|mochila|bolso|bag|cintur|neceser|riñonera|accesorio/i.test(titleLowerCat)) {
+            inferredCategoryId = catMap["accessories"] || null;
+          }
+
           if (existing.length > 0) {
             productId = existing[0].id;
             await db
               .update(products)
-              .set({ title, description, basePrice, salePrice: salePrice ? String(salePrice) : null, status, externalUrl, updatedAt: new Date() })
+              .set({ title, description, basePrice, salePrice: salePrice ? String(salePrice) : null, status, externalUrl, categoryId: inferredCategoryId, updatedAt: new Date() })
               .where(eq(products.id, productId));
-            // Clear old tags/images/variants for refresh
             await db.delete(productTags).where(eq(productTags.productId, productId));
             await db.delete(productImages).where(eq(productImages.productId, productId));
             await db.delete(productVariants).where(eq(productVariants.productId, productId));
           } else {
             const [inserted] = await db
               .insert(products)
-              .values({ title, description, basePrice, salePrice: salePrice ? String(salePrice) : null, status, externalProvider: "tiendanube", externalId, externalUrl, currency: "ARS" })
+              .values({ title, description, basePrice, salePrice: salePrice ? String(salePrice) : null, status, externalProvider: "tiendanube", externalId, externalUrl, categoryId: inferredCategoryId, currency: "ARS" })
               .returning({ id: products.id });
             productId = inserted.id;
           }
