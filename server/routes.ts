@@ -517,12 +517,22 @@ Reply with ONLY valid JSON, no explanation.`
           if (!slot) continue;
           const itemColors = extractColorsFromPhrase(mustItem);
 
+          const exactTypeWords = mustItem.toLowerCase().match(/remera|camiseta|camisa|musculosa|polo|top|falda|pollera|bermuda|short|pantalon|pantalón|jean|cargo|jogger|calza|campera|buzo|hoodie|sweater|zapatilla|bota|gorra|mochila|bolso|vestido/g) || [];
+
           const slotCandidates = scoredResults.filter(r => {
             if (usedIds.has(r.id)) return false;
             const catName = catNameById.get(r.categoryId) || "";
             return slot.catNames.some(n => catName.includes(n)) || r.title.toLowerCase().match(slot.keywords);
           });
-          slotCandidates.sort((a, b) => productColorScore(b, itemColors) - productColorScore(a, itemColors));
+          slotCandidates.sort((a, b) => {
+            const aTitle = a.title.toLowerCase();
+            const bTitle = b.title.toLowerCase();
+            const aExactType = exactTypeWords.some(w => aTitle.includes(w)) ? 10 : 0;
+            const bExactType = exactTypeWords.some(w => bTitle.includes(w)) ? 10 : 0;
+            const aColor = productColorScore(a, itemColors);
+            const bColor = productColorScore(b, itemColors);
+            return (bExactType + bColor) - (aExactType + aColor);
+          });
           let best = slotCandidates[0] || null;
 
           if (!best) {
@@ -533,8 +543,10 @@ Reply with ONLY valid JSON, no explanation.`
                 p.status === "active" && p.categoryId === catId &&
                 !usedIds.has(p.id) && p.variants?.some((v: any) => v.stockQty > 0)
               );
-              const withColor = filtered.filter(p => productMatchesColors(p, itemColors));
-              const chosen = withColor[0] || filtered[0];
+              const withExactType = filtered.filter(p => exactTypeWords.some(w => p.title.toLowerCase().includes(w)));
+              const pool2 = withExactType.length > 0 ? withExactType : filtered;
+              const withColor = pool2.filter(p => productMatchesColors(p, itemColors));
+              const chosen = withColor[0] || pool2[0];
               if (chosen) {
                 best = {
                   id: chosen.id, title: chosen.title, description: chosen.description,
@@ -809,11 +821,17 @@ Reply with ONLY valid JSON, no explanation.`
                 messages: [{
                   role: "user",
                   content: [
-                    { type: "text", text: "Analyze this fashion product image. Return ONLY a comma-separated list of attributes: actual visible colors (in Spanish), style (deportivo/casual/formal/urbano/streetwear), pattern (liso/estampado/rayado/etc), gender target (hombre/mujer/unisex), and 2-3 descriptive tags. Example: gris, negro, deportivo, liso, hombre, moderno, athleisure. Be concise, no sentences." },
+                    { type: "text", text: `Product name: "${title}". Look at this product image and describe ONLY what you see in the product itself (ignore background, models, props). Return a comma-separated list:
+1. The ACTUAL main color(s) of the product in Spanish (negro, blanco, gris, azul, rojo, verde, rosa, beige, marron, celeste, bordo, lila, coral, naranja, amarillo)
+2. Style: deportivo/casual/formal/urbano/streetwear
+3. Pattern: liso/estampado/rayado/a cuadros
+4. Gender: hombre/mujer/unisex
+5. 2-3 descriptive keywords
+IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the model's skin/hair/background). Be accurate with the main product color.` },
                     { type: "image_url", image_url: { url: mainImageUrl, detail: "low" } }
                   ]
                 }],
-                max_tokens: 100,
+                max_tokens: 120,
               });
               visionDescription = visionRes.choices[0]?.message?.content?.trim() || "";
               if (visionDescription) {
@@ -833,7 +851,8 @@ Reply with ONLY valid JSON, no explanation.`
 
           if (openai) {
             try {
-              const textToEmbed = `${title}. ${description} ${visionDescription ? `Visual: ${visionDescription}.` : ""} Tags: ${rawTags.join(", ")}`;
+              const visionColorOverride = visionDescription || "";
+              const textToEmbed = `${title}. ${description} ${visionColorOverride ? `Visual attributes: ${visionColorOverride}.` : ""} Tags: ${rawTags.join(", ")}`;
               const embRes = await openai.embeddings.create({
                 model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
                 input: textToEmbed,
