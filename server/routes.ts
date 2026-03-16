@@ -546,11 +546,41 @@ export async function registerRoutes(
             await db.insert(productVariants).values({ productId, sizeLabel: "Único", stockQty: 0 });
           }
 
-          // Tags — from tnp.tags + color inference from title
           const rawTags: string[] = Array.isArray(tnp.tags) ? tnp.tags.flatMap((t: string) => t.split(",").map((s: string) => s.trim()).filter(Boolean)) : [];
-          const titleLower = title.toLowerCase();
-          if (titleLower.includes("negro") || titleLower.includes("black")) rawTags.push("black", "negro");
-          if (titleLower.includes("blanco") || titleLower.includes("white")) rawTags.push("white", "blanco");
+          const textForTags = `${title} ${description}`.toLowerCase();
+          const colorPairs: [string, string[]][] = [
+            ["negro", ["black", "negro"]], ["black", ["black", "negro"]],
+            ["blanco", ["white", "blanco"]], ["white", ["white", "blanco"]],
+            ["verde", ["green", "verde"]], ["green", ["green", "verde"]],
+            ["azul", ["blue", "azul"]], ["blue", ["blue", "azul"]],
+            ["rojo", ["red", "rojo"]], ["red", ["red", "rojo"]],
+            ["rosa", ["pink", "rosa"]], ["pink", ["pink", "rosa"]],
+            ["gris", ["grey", "gris"]], ["grey", ["grey", "gris"]], ["gray", ["grey", "gris"]],
+            ["naranja", ["orange", "naranja"]], ["orange", ["orange", "naranja"]],
+            ["amarillo", ["yellow", "amarillo"]], ["yellow", ["yellow", "amarillo"]],
+            ["marron", ["brown", "marron"]], ["brown", ["brown", "marron"]],
+            ["beige", ["beige"]], ["crudo", ["beige", "crudo"]],
+            ["celeste", ["lightblue", "celeste"]], ["bordo", ["burgundy", "bordo"]],
+            ["lila", ["purple", "lila"]], ["coral", ["coral"]],
+            ["militar", ["olive", "militar"]], ["lima", ["lime", "verde", "lima"]],
+            ["aqua", ["aqua", "verde"]], ["agua", ["aqua", "verde"]],
+          ];
+          for (const [keyword, tags] of colorPairs) {
+            if (textForTags.includes(keyword)) {
+              for (const t of tags) {
+                if (!rawTags.includes(t)) rawTags.push(t);
+              }
+            }
+          }
+          const typePairs: [RegExp, string][] = [
+            [/remera|camiseta|tee/i, "remera"], [/short/i, "short"], [/pantalon|pantalón/i, "pantalon"],
+            [/pollera|falda/i, "pollera"], [/calza|legging/i, "calza"], [/campera|jacket/i, "campera"],
+            [/gorra|cap/i, "gorra"], [/media|sock/i, "medias"], [/zapatilla|sneaker/i, "zapatilla"],
+            [/musculosa|tank/i, "musculosa"], [/vestido|dress/i, "vestido"], [/buzo|hoodie|sudadera/i, "buzo"],
+          ];
+          for (const [regex, tag] of typePairs) {
+            if (regex.test(textForTags) && !rawTags.includes(tag)) rawTags.push(tag);
+          }
           if (rawTags.length > 0) {
             await db.insert(productTags).values(rawTags.map(tag => ({ productId, tag })));
           }
