@@ -107,4 +107,5 @@ Preferred communication style: Simple, everyday language.
 | `DATABASE_URL` | Yes | PostgreSQL connection string (auto-set by Replit) |
 | `OPENAI_API_KEY` | Yes | OpenAI API key for embeddings and chat |
 | `OPENAI_EMBEDDING_MODEL` | No | Override embedding model (default: `text-embedding-3-small`) |
-| `OPENAI_CHAT_MODEL` | No | Override chat model (default: `gpt-4o-mini`) |
+| `OPENAI_CHAT_MODEL` | No | Override chat model for intent extraction (default: `gpt-4o-mini`) |
+| `OPENAI_VISION_MODEL` | No | Override vision model for product image analysis during sync (default: `gpt-4o`) |
