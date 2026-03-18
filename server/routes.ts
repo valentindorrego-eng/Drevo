@@ -657,13 +657,92 @@ Reply with ONLY valid JSON, no explanation.`
         }
       }
 
+      let filteredResults = scoredResults;
+      if (intent.intent_type === "outfit" && outfitBundles.length > 0) {
+        const bundleIds = new Set(outfitBundles[0].items.map((i: any) => i.id));
+        const allIntentColors = [...(intent.colors?.primary || []), ...(intent.colors?.secondary || [])];
+        const mustIncludeTypes = (intent.must_include || []).flatMap((m: string) =>
+          m.toLowerCase().match(/remera|camiseta|camisa|musculosa|polo|top|falda|pollera|bermuda|short|pantalon|pantalón|jean|cargo|jogger|calza|campera|buzo|hoodie|sweater|zapatilla|bota|gorra|mochila|bolso|vestido/g) || []
+        );
+        const typeSynonyms: Record<string, string[]> = {
+          remera: ["remera", "camiseta", "tee"], camiseta: ["camiseta", "remera", "tee"],
+          falda: ["falda", "pollera"], pollera: ["pollera", "falda"],
+          pantalon: ["pantalon", "pantalón", "carpenter", "cargo", "jean"],
+          "pantalón": ["pantalón", "pantalon", "carpenter", "cargo", "jean"],
+          campera: ["campera", "jacket"], zapatilla: ["zapatilla", "sneaker", "sneakers"],
+        };
+        const expandedTypes = [...new Set(mustIncludeTypes.flatMap(t => typeSynonyms[t] || [t]))];
+
+        const colorSynonyms: Record<string, string[]> = {
+          negro: ["negro", "negra", "black"], blanca: ["blanca", "blanco", "white"],
+          gris: ["gris", "grey", "gray"], rosa: ["rosa", "pink"],
+          azul: ["azul", "blue"], rojo: ["rojo", "red"], verde: ["verde", "green"],
+          beige: ["beige", "crudo"], marron: ["marron", "marrón", "brown"],
+          celeste: ["celeste"], bordo: ["bordo", "bordó", "burgundy"],
+          lila: ["lila", "purple"], coral: ["coral"], naranja: ["naranja", "orange"],
+          amarillo: ["amarillo", "yellow"], black: ["black", "negro", "negra"],
+          white: ["white", "blanco", "blanca"], grey: ["grey", "gray", "gris"],
+          pink: ["pink", "rosa"], blue: ["blue", "azul"],
+        };
+
+        const mustItemParsed = (intent.must_include || []).map((m: string) => {
+          const mLower = m.toLowerCase();
+          const types = mLower.match(/remera|camiseta|camisa|musculosa|polo|top|falda|pollera|bermuda|short|pantalon|pantalón|jean|cargo|jogger|calza|campera|buzo|hoodie|sweater|zapatilla|bota|gorra|mochila|bolso|vestido|carpenter/g) || [];
+          const foundColors: string[] = [];
+          for (const [, syns] of Object.entries(colorSynonyms)) {
+            if (syns.some(s => mLower.includes(s))) {
+              for (const s of syns) { if (!foundColors.includes(s)) foundColors.push(s); }
+            }
+          }
+          const expandedT = [...new Set(types.flatMap(t => typeSynonyms[t] || [t]))];
+          return { types: expandedT, colors: foundColors };
+        });
+
+        const catSlotMap: Record<string, RegExp> = {
+          tops: /remera|camiseta|tee|camisa|top|polo|musculosa|chaleco|vest|crop|body/i,
+          bottoms: /pant|jean|cargo|short|pollera|falda|calza|pantalon|pantalón|chino|jogger|bermuda|carpenter/i,
+          outerwear: /campera|jacket|buzo|hoodie|sweater|abrigo|bomber|anorak/i,
+          footwear: /sneaker|shoe|zapa|bota|boot|sandal|chancla|calzado/i,
+          accessories: /media|medias|sock|gorra|cap|hat|vincha|muñequera|mochila|bolso/i,
+        };
+        const mustItemCategories = mustItemParsed.map(item => {
+          for (const [cat, regex] of Object.entries(catSlotMap)) {
+            if (item.types.some(t => regex.test(t))) return cat;
+          }
+          return null;
+        });
+        const allCatsForFilter = await db.select().from(categories);
+        const catNameByIdFilter = new Map(allCatsForFilter.map(c => [c.id, c.name.toLowerCase()]));
+
+        filteredResults = scoredResults.filter(r => {
+          if (bundleIds.has(r.id)) return false;
+          const rTitle = r.title.toLowerCase();
+          const rCatName = catNameByIdFilter.get(r.categoryId) || "";
+
+          for (let i = 0; i < mustItemParsed.length; i++) {
+            const item = mustItemParsed[i];
+            const itemCat = mustItemCategories[i];
+            const titleMatchesType = item.types.some(t => rTitle.includes(t));
+            const sameCat = itemCat && rCatName === itemCat;
+            if (!titleMatchesType && !sameCat) continue;
+            if (item.colors.length === 0) return true;
+            const titleMatchesColor = item.colors.some(c => {
+              const syns = colorSynonyms[c] || [c];
+              return syns.some(s => rTitle.includes(s));
+            });
+            if (titleMatchesColor) return true;
+          }
+          return false;
+        });
+      }
+
       res.status(200).json({
         query: input.query,
         intent,
-        results: scoredResults,
+        results: filteredResults,
         suggested_filters: {
           sizes: ["S", "M", "L", "XL"],
-          brands: Array.from(new Set(scoredResults.map(r => r.brand?.name).filter(Boolean))) as string[]
+          brands: Array.from(new Set(filteredResults.map(r => r.brand?.name).filter(Boolean))) as string[]
         },
         outfit_bundles: outfitBundles
       });
