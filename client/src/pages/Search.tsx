@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import { useSearchProducts } from "@/hooks/use-search";
 import { ProductCard } from "@/components/ProductCard";
-import { Search as SearchIcon, Loader2, Sparkles, ShoppingBag } from "lucide-react";
+import { Search as SearchIcon, Loader2, Sparkles, ShoppingBag, X } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function Search() {
@@ -41,10 +41,20 @@ export default function Search() {
             <input 
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
+              className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
               placeholder="Refiná tu búsqueda..."
               data-testid="input-search"
             />
+            {inputValue && (
+              <button
+                type="button"
+                onClick={() => setInputValue("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+                data-testid="button-clear-search"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
           </form>
 
           {searchResults?.intent && (
