@@ -316,6 +316,7 @@ RULES:
 - colors.primary = ALL colors mentioned in the query (both Spanish and English)
 - colors.secondary = colors that are secondary/accent (e.g. the print color, not the base)
 - exclude = things the user explicitly doesn't want (e.g. "no deportiva" → ["deportiva"])
+- If the user's preferred size is provided (e.g. [User preferred size: M]), consider it as context for better matching but do NOT add it to the JSON output
 
 JSON schema:
 {
@@ -332,7 +333,7 @@ JSON schema:
 }
 Reply with ONLY valid JSON, no explanation.` 
               },
-              { role: "user", content: input.query }
+              { role: "user", content: userSize ? `${input.query}\n\n[User preferred size: ${userSize}]` : input.query }
             ]
           });
           const aiIntent = JSON.parse(completion.choices[0].message?.content || "{}");
@@ -625,7 +626,26 @@ Reply with ONLY valid JSON, no explanation.`
         };
       }).sort((a, b) => b.similarity - a.similarity);
 
-      const outfitBundles: any[] = [];
+      interface ScoredProduct {
+        id: number;
+        title: string;
+        description: string | null;
+        basePrice: number;
+        salePrice: number | null;
+        currency: string;
+        gender: string | null;
+        categoryId: number | null;
+        brand: { name: string; slug: string } | null;
+        images: { url: string; position: number }[];
+        variants: { sizeLabel: string | null; stockQty: number | null }[];
+        tags: string[];
+        similarity: number;
+        reasons: string[];
+        _hasUserSize: boolean;
+        slot?: string;
+      }
+
+      const outfitBundles: { title: string; items: Omit<ScoredProduct, '_hasUserSize'>[] }[] = [];
       if (intent.intent_type === "outfit" && scoredResults.length >= 2) {
         const allCats = await db.select().from(categories);
         const catNameById = new Map(allCats.map(c => [c.id, c.name.toLowerCase()]));
@@ -705,7 +725,7 @@ Reply with ONLY valid JSON, no explanation.`
         };
 
         const usedIds = new Set<string>();
-        const bundleItems: any[] = [];
+        const bundleItems: ScoredProduct[] = [];
 
         for (const mustItem of (intent.must_include || [])) {
           const slot = detectSlot(mustItem);
@@ -742,11 +762,17 @@ Reply with ONLY valid JSON, no explanation.`
             const bColor = productColorScore(b, itemColors);
             const aGender = productGenderScore(a);
             const bGender = productGenderScore(b);
-            const aSize = (userSize && sizeFilterEnabled && (a as any)._hasUserSize) ? 5 : 0;
-            const bSize = (userSize && sizeFilterEnabled && (b as any)._hasUserSize) ? 5 : 0;
+            const aSize = (userSize && sizeFilterEnabled && a._hasUserSize) ? 5 : 0;
+            const bSize = (userSize && sizeFilterEnabled && b._hasUserSize) ? 5 : 0;
             return (bExactType + bColor + bGender + bSize) - (aExactType + aColor + aGender + aSize);
           });
-          let best = slotCandidates[0] || null;
+          let best: ScoredProduct | null = null;
+          if (userSize && sizeFilterEnabled) {
+            const sizeFiltered = slotCandidates.filter(c => c._hasUserSize);
+            best = sizeFiltered[0] || slotCandidates[0] || null;
+          } else {
+            best = slotCandidates[0] || null;
+          }
 
           if (!best) {
             const catId = catIdByName.get(slot.name);
@@ -761,13 +787,17 @@ Reply with ONLY valid JSON, no explanation.`
               const withColor = pool2.filter(p => productMatchesColors(p, itemColors));
               const chosen = withColor[0] || pool2[0];
               if (chosen) {
+                const chosenHasSize = userSize ? (chosen.variants || []).some((v: { sizeLabel: string | null; stockQty: number | null }) =>
+                  v.sizeLabel?.toUpperCase() === userSize.toUpperCase() && (v.stockQty === null || (v.stockQty ?? 0) > 0)
+                ) : false;
                 best = {
                   id: chosen.id, title: chosen.title, description: chosen.description,
                   basePrice: Number(chosen.basePrice), salePrice: chosen.salePrice ? Number(chosen.salePrice) : null,
                   currency: chosen.currency, gender: chosen.gender, categoryId: chosen.categoryId,
                   brand: null, images: chosen.images || [], variants: chosen.variants || [],
-                  tags: chosen.tags?.map((t: any) => t.tag || t) || [],
-                  similarity: 0.5, reasons: ["Complemento de outfit"]
+                  tags: chosen.tags?.map((t: { tag?: string }) => t.tag || '') || [],
+                  similarity: 0.5, reasons: ["Complemento de outfit"],
+                  _hasUserSize: chosenHasSize,
                 };
               }
             }
@@ -793,28 +823,38 @@ Reply with ONLY valid JSON, no explanation.`
             return slot.catNames.some(n => catName.includes(n));
           });
           compCandidates.sort((a, b) => {
-            const aScore = productColorScore(a, allColors) + productGenderScore(a) + ((userSize && sizeFilterEnabled && (a as any)._hasUserSize) ? 5 : 0);
-            const bScore = productColorScore(b, allColors) + productGenderScore(b) + ((userSize && sizeFilterEnabled && (b as any)._hasUserSize) ? 5 : 0);
+            const aScore = productColorScore(a, allColors) + productGenderScore(a) + ((userSize && sizeFilterEnabled && a._hasUserSize) ? 5 : 0);
+            const bScore = productColorScore(b, allColors) + productGenderScore(b) + ((userSize && sizeFilterEnabled && b._hasUserSize) ? 5 : 0);
             return bScore - aScore;
           });
-          let found = compCandidates[0] || null;
+          let found: ScoredProduct | null = null;
+          if (userSize && sizeFilterEnabled) {
+            const sizeFiltered = compCandidates.filter(c => c._hasUserSize);
+            found = sizeFiltered[0] || compCandidates[0] || null;
+          } else {
+            found = compCandidates[0] || null;
+          }
           if (!found) {
             const dbProducts = await storage.getProducts();
             const filtered = dbProducts.filter(p =>
               p.status === "active" && p.categoryId === catId &&
-              !usedIds.has(p.id) && p.variants?.some((v: any) => v.stockQty > 0) &&
+              !usedIds.has(p.id) && p.variants?.some((v: { stockQty: number | null }) => (v.stockQty ?? 0) > 0) &&
               productGenderScore(p) >= 0
             );
             const withColor = filtered.filter(p => productMatchesColors(p, allColors));
             const chosen = withColor[0] || filtered[0];
             if (chosen) {
+              const chosenHasSize = userSize ? (chosen.variants || []).some((v: { sizeLabel: string | null; stockQty: number | null }) =>
+                v.sizeLabel?.toUpperCase() === userSize.toUpperCase() && (v.stockQty === null || (v.stockQty ?? 0) > 0)
+              ) : false;
               found = {
                 id: chosen.id, title: chosen.title, description: chosen.description,
                 basePrice: Number(chosen.basePrice), salePrice: chosen.salePrice ? Number(chosen.salePrice) : null,
                 currency: chosen.currency, gender: chosen.gender, categoryId: chosen.categoryId,
                 brand: null, images: chosen.images || [], variants: chosen.variants || [],
-                tags: chosen.tags?.map((t: any) => t.tag || t) || [],
-                similarity: 0.5, reasons: ["Complemento de outfit"]
+                tags: chosen.tags?.map((t: { tag?: string }) => t.tag || '') || [],
+                similarity: 0.5, reasons: ["Complemento de outfit"],
+                _hasUserSize: chosenHasSize,
               };
             }
           }
@@ -829,7 +869,7 @@ Reply with ONLY valid JSON, no explanation.`
           bundleItems.sort((a, b) => slotOrder.indexOf(a.slot) - slotOrder.indexOf(b.slot));
           outfitBundles.push({
             title: "Outfit recomendado por Drevo",
-            items: bundleItems.map(({ _hasUserSize, ...rest }: any) => rest)
+            items: bundleItems.map(({ _hasUserSize, ...rest }) => rest)
           });
         }
       }
@@ -915,12 +955,12 @@ Reply with ONLY valid JSON, no explanation.`
 
       let finalResults = filteredResults;
       if (userSize && sizeFilterEnabled) {
-        finalResults = filteredResults.filter((r: any) => r._hasUserSize);
+        finalResults = filteredResults.filter(r => r._hasUserSize);
         if (finalResults.length < 3) {
           finalResults = filteredResults;
         }
       }
-      const cleanResults = finalResults.map(({ _hasUserSize, ...rest }: any) => rest);
+      const cleanResults = finalResults.map(({ _hasUserSize, ...rest }) => rest);
 
       res.status(200).json({
         query: input.query,
@@ -928,7 +968,7 @@ Reply with ONLY valid JSON, no explanation.`
         results: cleanResults,
         suggested_filters: {
           sizes: ["S", "M", "L", "XL"],
-          brands: Array.from(new Set(cleanResults.map((r: any) => r.brand?.name).filter(Boolean))) as string[]
+          brands: Array.from(new Set(cleanResults.map(r => r.brand?.name).filter(Boolean))) as string[]
         },
         outfit_bundles: outfitBundles,
         ...(userSize ? { sizeFilter: { size: userSize, enabled: sizeFilterEnabled } } : {}),
