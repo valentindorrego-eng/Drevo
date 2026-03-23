@@ -30,6 +30,10 @@ export default function Profile() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) setLocation("/auth");
+  }, [isLoading, isAuthenticated, setLocation]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-black text-white">
@@ -40,10 +44,6 @@ export default function Profile() {
       </div>
     );
   }
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) setLocation("/auth");
-  }, [isLoading, isAuthenticated, setLocation]);
 
   if (!isAuthenticated) return null;
 
