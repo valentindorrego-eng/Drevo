@@ -1,14 +1,16 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Menu, X, Plug } from "lucide-react";
+import { ShoppingBag, Menu, X, Plug, UserCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/hooks/useAuth";
 
 export function Navigation() {
   const [location] = useLocation();
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { totalItems } = useCart();
+  const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -23,6 +25,7 @@ export function Navigation() {
     { href: "/search", label: "Buscar" },
     { href: "/connect", label: "Conectar tienda" },
     { href: "/cart", label: `Carrito${totalItems > 0 ? ` (${totalItems})` : ""}` },
+    { href: isAuthenticated ? "/profile" : "/auth", label: isAuthenticated ? (user?.displayName || "Mi cuenta") : "Entrar" },
   ];
 
   return (
@@ -64,6 +67,21 @@ export function Navigation() {
                 </span>
               )}
             </div>
+          </Link>
+          <Link
+            href={isAuthenticated ? "/profile" : "/auth"}
+            data-testid="link-nav-auth"
+            className={cn(
+              "text-sm font-medium transition-colors hover:text-white flex items-center gap-1.5",
+              (location === "/auth" || location === "/profile") ? "text-white" : "text-neutral-400"
+            )}
+          >
+            {isAuthenticated && user?.profileImageUrl ? (
+              <img src={user.profileImageUrl} alt="" className="w-5 h-5 rounded-full" />
+            ) : (
+              <UserCircle className="w-4 h-4" />
+            )}
+            <span>{isAuthenticated ? (user?.displayName || "Mi cuenta") : "Entrar"}</span>
           </Link>
         </nav>
 

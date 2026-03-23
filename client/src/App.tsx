@@ -10,6 +10,8 @@ import Search from "@/pages/Search";
 import ProductDetail from "@/pages/ProductDetail";
 import Cart from "@/pages/Cart";
 import BrandConnect from "@/pages/BrandConnect";
+import Auth from "@/pages/Auth";
+import Profile from "@/pages/Profile";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -20,6 +22,8 @@ function Router() {
       <Route path="/product/:id" component={ProductDetail} />
       <Route path="/cart" component={Cart} />
       <Route path="/connect" component={BrandConnect} />
+      <Route path="/auth" component={Auth} />
+      <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
     </Switch>
   );

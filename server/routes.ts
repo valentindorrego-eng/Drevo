@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -7,16 +7,126 @@ import OpenAI from "openai";
 import { db, pool } from "./db";
 import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings, brandIntegrations } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
+import { passport } from "./auth";
+import bcrypt from "bcryptjs";
 
-// Initialize OpenAI conditionally
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.isAuthenticated()) return next();
+  res.status(401).json({ message: "No autenticado" });
+}
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
 
-  // Tiendanube OAuth Routes
+  // ─── Auth Routes ───
+
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const { email, password, displayName } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email y contraseña son obligatorios" });
+      }
+      if (password.length < 6) {
+        return res.status(400).json({ message: "La contraseña debe tener al menos 6 caracteres" });
+      }
+      const existing = await storage.getUserByEmail(email);
+      if (existing) {
+        return res.status(409).json({ message: "Ya existe una cuenta con este email" });
+      }
+      const passwordHash = await bcrypt.hash(password, 10);
+      const user = await storage.createUser({ email, passwordHash, displayName: displayName || null });
+      req.session.regenerate((regenErr) => {
+        if (regenErr) return res.status(500).json({ message: "Error al iniciar sesión" });
+        req.login(user, (err) => {
+          if (err) return res.status(500).json({ message: "Error al iniciar sesión" });
+          const { passwordHash: _, ...safeUser } = user;
+          return res.json(safeUser);
+        });
+      });
+    } catch (error) {
+      console.error("Register error:", error);
+      res.status(500).json({ message: "Error interno del servidor" });
+    }
+  });
+
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
+      if (err) return res.status(500).json({ message: "Error interno" });
+      if (!user) return res.status(401).json({ message: info?.message || "Credenciales inválidas" });
+      req.session.regenerate((regenErr) => {
+        if (regenErr) return res.status(500).json({ message: "Error al iniciar sesión" });
+        req.login(user, (loginErr) => {
+          if (loginErr) return res.status(500).json({ message: "Error al iniciar sesión" });
+          const { passwordHash: _, ...safeUser } = user;
+          return res.json(safeUser);
+        });
+      });
+    })(req, res, next);
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) return res.status(500).json({ message: "Error al cerrar sesión" });
+      req.session.destroy((destroyErr) => {
+        if (destroyErr) return res.status(500).json({ message: "Error al cerrar sesión" });
+        res.clearCookie("connect.sid");
+        res.json({ message: "Sesión cerrada" });
+      });
+    });
+  });
+
+  app.get("/api/auth/me", (req, res) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ message: "No autenticado" });
+    }
+    const { passwordHash: _, ...safeUser } = req.user;
+    res.json(safeUser);
+  });
+
+  const profileSchema = z.object({
+    displayName: z.string().max(100).optional(),
+    preferredSize: z.enum(["XS", "S", "M", "L", "XL", "XXL"]).optional(),
+    heightCm: z.number().int().min(100).max(250).nullable().optional(),
+    weightKg: z.number().int().min(30).max(300).nullable().optional(),
+    bodyType: z.enum(["ectomorph", "mesomorph", "endomorph"]).optional(),
+  });
+
+  app.put("/api/auth/profile", requireAuth, async (req, res) => {
+    try {
+      const parsed = profileSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Datos inválidos", errors: parsed.error.flatten().fieldErrors });
+      }
+      const { displayName, preferredSize, heightCm, weightKg, bodyType } = parsed.data;
+      const updated = await storage.updateUser(req.user!.id, {
+        displayName,
+        preferredSize,
+        heightCm: heightCm ?? null,
+        weightKg: weightKg ?? null,
+        bodyType,
+      });
+      if (!updated) return res.status(404).json({ message: "Usuario no encontrado" });
+      const { passwordHash: _, ...safeUser } = updated;
+      res.json(safeUser);
+    } catch (error) {
+      console.error("Profile update error:", error);
+      res.status(500).json({ message: "Error al actualizar perfil" });
+    }
+  });
+
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+    app.get("/auth/google/callback",
+      passport.authenticate("google", { failureRedirect: "/auth?error=google_failed" }),
+      (_req, res) => { res.redirect("/profile"); }
+    );
+  }
+
+  // ─── Tiendanube OAuth Routes ───
   app.get("/auth/tiendanube/start", (req, res) => {
     const clientId = process.env.TIENDANUBE_CLIENT_ID;
     if (!clientId) {

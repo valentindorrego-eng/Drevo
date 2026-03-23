@@ -57,7 +57,7 @@ Preferred communication style: Simple, everyday language.
   - `product_embeddings` — Vector embeddings (pgvector) per product for semantic search
   - `search_queries` — Log of user search queries with extracted intent
   - `brand_integrations` — OAuth tokens for connected stores (Tiendanube)
-  - `users` — Basic user table (minimal for MVP)
+  - `users` — User accounts with email/password or Google OAuth, physical attributes (height, weight, body type, preferred size), profile image
 - **Vector Search**: pgvector extension with a `match_products` SQL RPC function for cosine similarity search
 - **Seeding**: Application auto-seeds dummy brands, products, categories, variants, tags, and images on startup
 
@@ -79,7 +79,15 @@ Preferred communication style: Simple, everyday language.
 - **Reindex**: `npx tsx scripts/reindex.ts` → regenerates all product embeddings
 
 ### Storage Layer
-- `server/storage.ts` — `DatabaseStorage` class implementing `IStorage` interface for product queries, user CRUD (minimal), and search query logging
+- `server/storage.ts` — `DatabaseStorage` class implementing `IStorage` interface for product queries, user CRUD, and search query logging
+- `server/auth.ts` — Passport.js configuration with local (email+bcrypt) and Google OAuth strategies, session serialization
+
+### Authentication
+- **Session**: express-session with connect-pg-simple (PostgreSQL session store), session regeneration on login/register, full destruction on logout
+- **Strategies**: Passport.js local strategy (email + bcryptjs), Google OAuth 2.0 (optional, requires GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET)
+- **Key Pages**: `/auth` (login/register), `/profile` (user profile with physical attributes)
+- **API Routes**: POST `/api/auth/register`, POST `/api/auth/login`, POST `/api/auth/logout`, GET `/api/auth/me`, PUT `/api/auth/profile`
+- **Frontend**: `useAuth` hook wrapping TanStack Query for auth state management
 
 ## External Dependencies
 
@@ -109,3 +117,6 @@ Preferred communication style: Simple, everyday language.
 | `OPENAI_EMBEDDING_MODEL` | No | Override embedding model (default: `text-embedding-3-small`) |
 | `OPENAI_CHAT_MODEL` | No | Override chat model for intent extraction (default: `gpt-4o-mini`) |
 | `OPENAI_VISION_MODEL` | No | Override vision model for product image analysis during sync (default: `gpt-4o`) |
+| `SESSION_SECRET` | Yes (prod) | Session signing secret (required in production, has dev fallback) |
+| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID (enables Google login) |
+| `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |

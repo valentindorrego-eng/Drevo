@@ -1,36 +1,46 @@
-import { type User, type InsertUser, products, productTags, productImages, productVariants, brands, categories } from "@shared/schema";
+import { type User, type InsertUser, users, products, productTags, productImages, productVariants, brands, categories } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import { eq, inArray } from "drizzle-orm";
 
-// modify the interface with any CRUD methods
-// you might need
-
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  
-  // Products
+  updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
+
   getProducts(): Promise<any[]>;
   getProduct(id: string): Promise<any | undefined>;
   getProductsByIds(ids: string[]): Promise<any[]>;
-  
-  // Search
+
   createSearchQuery(queryText: string, intent: any): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
-    return undefined; // Not implemented for this MVP
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0] || undefined;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return undefined; // Not implemented for this MVP
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+    return result[0] || undefined;
+  }
+
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.googleId, googleId));
+    return result[0] || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    throw new Error("Not implemented");
+    const result = await db.insert(users).values({ ...insertUser, email: insertUser.email.toLowerCase() }).returning();
+    return result[0];
+  }
+
+  async updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined> {
+    const result = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return result[0] || undefined;
   }
 
   async getProducts() {
