@@ -159,7 +159,13 @@ export async function registerRoutes(
 
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  const googleEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+
+  app.get("/api/auth/config", (_req, res) => {
+    res.json({ googleEnabled });
+  });
+
+  if (googleEnabled) {
     app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
     app.get("/auth/google/callback",
       passport.authenticate("google", { failureRedirect: "/auth?error=google_failed" }),
