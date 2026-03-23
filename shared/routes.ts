@@ -41,7 +41,11 @@ export const searchResponseSchema = z.object({
   outfit_bundles: z.array(z.object({
     title: z.string(),
     items: z.array(searchResultProductSchema)
-  })).optional()
+  })).optional(),
+  sizeFilter: z.object({
+    size: z.string(),
+    enabled: z.boolean(),
+  }).optional(),
 });
 
 export const api = {
@@ -51,7 +55,9 @@ export const api = {
       path: '/api/search' as const,
       input: z.object({
         query: z.string().min(1),
-        limit: z.number().min(1).max(50).optional()
+        limit: z.number().min(1).max(50).optional(),
+        userSize: z.string().optional(),
+        sizeFilterEnabled: z.boolean().optional(),
       }),
       responses: {
         200: searchResponseSchema,

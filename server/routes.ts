@@ -283,6 +283,8 @@ export async function registerRoutes(
     try {
       const input = api.search.searchProducts.input.parse(req.body);
       const query = input.query.toLowerCase();
+      const userSize = input.userSize || null;
+      const sizeFilterEnabled = input.sizeFilterEnabled !== false && !!userSize;
       
       // Intent extraction with strict JSON schema
       let intent: any = {
@@ -589,9 +591,19 @@ Reply with ONLY valid JSON, no explanation.`
         const hasStock = p.variants.some((v: any) => v.stockQty > 0);
         if (hasStock) score += 0.04;
 
-        // Category matching from preferred_categories
-        if (intent.preferred_categories?.length > 0 && p.categoryId) {
-          // We'll use this for outfit bundling below
+        // Size filtering/penalization
+        let hasUserSize = false;
+        if (userSize && sizeFilterEnabled) {
+          const sizeUpper = userSize.toUpperCase();
+          hasUserSize = p.variants.some((v: any) => 
+            v.sizeLabel?.toUpperCase() === sizeUpper && (v.stockQty === null || v.stockQty > 0)
+          );
+          if (!hasUserSize) {
+            score -= 0.50;
+          } else {
+            score += 0.08;
+            reasons.push(`Disponible en talle ${userSize}`);
+          }
         }
 
         return {
@@ -608,7 +620,8 @@ Reply with ONLY valid JSON, no explanation.`
           variants: p.variants.map((v: any) => ({ sizeLabel: v.sizeLabel, stockQty: v.stockQty })),
           tags: p.tags.map((t: any) => t.tag),
           similarity: Math.max(0, Math.min(1, score)),
-          reasons: [...new Set(reasons)].slice(0, 3)
+          reasons: [...new Set(reasons)].slice(0, 3),
+          _hasUserSize: hasUserSize,
         };
       }).sort((a, b) => b.similarity - a.similarity);
 
@@ -729,7 +742,9 @@ Reply with ONLY valid JSON, no explanation.`
             const bColor = productColorScore(b, itemColors);
             const aGender = productGenderScore(a);
             const bGender = productGenderScore(b);
-            return (bExactType + bColor + bGender) - (aExactType + aColor + aGender);
+            const aSize = (userSize && sizeFilterEnabled && (a as any)._hasUserSize) ? 5 : 0;
+            const bSize = (userSize && sizeFilterEnabled && (b as any)._hasUserSize) ? 5 : 0;
+            return (bExactType + bColor + bGender + bSize) - (aExactType + aColor + aGender + aSize);
           });
           let best = slotCandidates[0] || null;
 
@@ -778,8 +793,8 @@ Reply with ONLY valid JSON, no explanation.`
             return slot.catNames.some(n => catName.includes(n));
           });
           compCandidates.sort((a, b) => {
-            const aScore = productColorScore(a, allColors) + productGenderScore(a);
-            const bScore = productColorScore(b, allColors) + productGenderScore(b);
+            const aScore = productColorScore(a, allColors) + productGenderScore(a) + ((userSize && sizeFilterEnabled && (a as any)._hasUserSize) ? 5 : 0);
+            const bScore = productColorScore(b, allColors) + productGenderScore(b) + ((userSize && sizeFilterEnabled && (b as any)._hasUserSize) ? 5 : 0);
             return bScore - aScore;
           });
           let found = compCandidates[0] || null;
@@ -814,7 +829,7 @@ Reply with ONLY valid JSON, no explanation.`
           bundleItems.sort((a, b) => slotOrder.indexOf(a.slot) - slotOrder.indexOf(b.slot));
           outfitBundles.push({
             title: "Outfit recomendado por Drevo",
-            items: bundleItems
+            items: bundleItems.map(({ _hasUserSize, ...rest }: any) => rest)
           });
         }
       }
@@ -898,15 +913,25 @@ Reply with ONLY valid JSON, no explanation.`
         });
       }
 
+      let finalResults = filteredResults;
+      if (userSize && sizeFilterEnabled) {
+        finalResults = filteredResults.filter((r: any) => r._hasUserSize);
+        if (finalResults.length < 3) {
+          finalResults = filteredResults;
+        }
+      }
+      const cleanResults = finalResults.map(({ _hasUserSize, ...rest }: any) => rest);
+
       res.status(200).json({
         query: input.query,
         intent,
-        results: filteredResults,
+        results: cleanResults,
         suggested_filters: {
           sizes: ["S", "M", "L", "XL"],
-          brands: Array.from(new Set(filteredResults.map(r => r.brand?.name).filter(Boolean))) as string[]
+          brands: Array.from(new Set(cleanResults.map((r: any) => r.brand?.name).filter(Boolean))) as string[]
         },
-        outfit_bundles: outfitBundles
+        outfit_bundles: outfitBundles,
+        ...(userSize ? { sizeFilter: { size: userSize, enabled: sizeFilterEnabled } } : {}),
       });
     } catch (err) {
       console.error(err);

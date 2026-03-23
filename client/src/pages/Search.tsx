@@ -2,32 +2,48 @@ import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import { useSearchProducts } from "@/hooks/use-search";
+import { useAuth } from "@/hooks/useAuth";
 import { ProductCard } from "@/components/ProductCard";
-import { Search as SearchIcon, Loader2, Sparkles, ShoppingBag, X } from "lucide-react";
+import { Search as SearchIcon, Loader2, Sparkles, ShoppingBag, X, Ruler } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function Search() {
   const [location, setLocation] = useLocation();
   const searchParams = new URLSearchParams(window.location.search);
   const query = searchParams.get("q") || "";
+  const { user } = useAuth();
   
   const [inputValue, setInputValue] = useState(query);
+  const [sizeFilterEnabled, setSizeFilterEnabled] = useState(true);
   const { mutate: search, data: searchResults, isPending } = useSearchProducts();
+
+  const userSize = user?.preferredSize || null;
+
+  useEffect(() => {
+    if (searchResults?.sizeFilter) {
+      setSizeFilterEnabled(searchResults.sizeFilter.enabled);
+    }
+  }, [searchResults?.sizeFilter?.enabled]);
 
   useEffect(() => {
     if (query) {
-      search({ query });
+      search({ query, userSize: userSize || undefined, sizeFilterEnabled: userSize ? sizeFilterEnabled : undefined });
       setInputValue(query);
     }
-  }, [query, search]);
+  }, [query, search, userSize, sizeFilterEnabled]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.trim()) {
       const newQuery = inputValue.trim();
       setLocation(`/search?q=${encodeURIComponent(newQuery)}`);
-      search({ query: newQuery });
+      search({ query: newQuery, userSize: userSize || undefined, sizeFilterEnabled: userSize ? sizeFilterEnabled : undefined });
     }
+  };
+
+  const handleToggleSizeFilter = () => {
+    const newEnabled = !sizeFilterEnabled;
+    setSizeFilterEnabled(newEnabled);
   };
 
   return (
@@ -81,6 +97,39 @@ export default function Search() {
               </div>
             </motion.div>
           )}
+
+          {searchResults?.sizeFilter && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 flex items-center gap-3"
+            >
+              <button
+                onClick={handleToggleSizeFilter}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  sizeFilterEnabled
+                    ? "bg-[#C8FF00]/15 text-[#C8FF00] border border-[#C8FF00]/30"
+                    : "bg-white/5 text-neutral-400 border border-white/10"
+                }`}
+                data-testid="button-toggle-size-filter"
+              >
+                <Ruler className="w-4 h-4" />
+                {sizeFilterEnabled
+                  ? `Mostrando en talle ${searchResults.sizeFilter.size}`
+                  : `Filtro de talle ${searchResults.sizeFilter.size} desactivado`}
+              </button>
+              {sizeFilterEnabled && (
+                <span className="text-xs text-neutral-500">
+                  Tocá para ver todos los talles
+                </span>
+              )}
+              {!sizeFilterEnabled && (
+                <span className="text-xs text-neutral-500">
+                  Tocá para filtrar por tu talle
+                </span>
+              )}
+            </motion.div>
+          )}
         </div>
 
         {isPending ? (
@@ -91,7 +140,6 @@ export default function Search() {
         ) : searchResults ? (
           <div className="space-y-16">
             
-            {/* OUTFIT RECOMMENDATION SECTION */}
             {searchResults.outfit_bundles && searchResults.outfit_bundles.length > 0 && (
               <motion.div 
                 initial={{ opacity: 0, scale: 0.98 }}
@@ -132,7 +180,6 @@ export default function Search() {
               </motion.div>
             )}
 
-            {/* Results Grid */}
             <div>
               <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
                 <h3 className="text-2xl font-display font-bold tracking-tight">Explorar Resultados</h3>

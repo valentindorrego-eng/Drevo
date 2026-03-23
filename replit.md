@@ -67,9 +67,10 @@ Preferred communication style: Simple, everyday language.
 3. Heuristic fallback enriches intent for common Spanish/English fashion terms
 4. OpenAI embeddings API generates query vector
 5. pgvector `match_products` retrieves top ~40 candidates by cosine similarity
-6. Server-side re-ranking applies boosts: color match (+0.15), color conflict (-0.20), occasion match (+0.08), style match (+0.05), in-stock (+0.05)
-7. For outfit queries, compose bundle: pick best product per category slot (tops, bottoms, footwear, outerwear)
-8. Return ranked results with human-readable match reasons
+6. Server-side re-ranking applies boosts: color match (+0.15), color conflict (-0.20), occasion match (+0.08), style match (+0.05), in-stock (+0.05), size available (+0.08) / size unavailable (-0.50)
+7. For outfit queries, compose bundle: pick best product per category slot (tops, bottoms, footwear, outerwear), with size preference in all slot and complement candidate sorting
+8. Size-aware filtering: when user has `preferredSize` set, results without stock in that size are penalized and optionally filtered out (fallback to unfiltered if <3 results remain)
+9. Return ranked results with human-readable match reasons and optional `sizeFilter` metadata
 
 ### Build System
 - **Dev**: `npm run dev` → `tsx server/index.ts` with Vite middleware
