@@ -126,18 +126,23 @@ export async function registerRoutes(
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
+  const mimeToExt: Record<string, string> = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+  };
+
   const avatarUpload = multer({
     storage: multer.diskStorage({
       destination: uploadsDir,
       filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname) || ".jpg";
+        const ext = mimeToExt[file.mimetype] || ".jpg";
         cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
       },
     }),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-      const allowed = ["image/jpeg", "image/png", "image/webp"];
-      cb(null, allowed.includes(file.mimetype));
+      cb(null, file.mimetype in mimeToExt);
     },
   });
 
