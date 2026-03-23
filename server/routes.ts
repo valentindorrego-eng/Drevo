@@ -1,4 +1,5 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
+import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
@@ -9,6 +10,9 @@ import { products, brands, categories, productImages, productVariants, productTa
 import { eq, sql } from "drizzle-orm";
 import { passport } from "./auth";
 import bcrypt from "bcryptjs";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
@@ -117,6 +121,43 @@ export async function registerRoutes(
       res.status(500).json({ message: "Error al actualizar perfil" });
     }
   });
+
+  const uploadsDir = path.join(process.cwd(), "uploads", "avatars");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  const avatarUpload = multer({
+    storage: multer.diskStorage({
+      destination: uploadsDir,
+      filename: (_req, file, cb) => {
+        const ext = path.extname(file.originalname) || ".jpg";
+        cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+      },
+    }),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = ["image/jpeg", "image/png", "image/webp"];
+      cb(null, allowed.includes(file.mimetype));
+    },
+  });
+
+  app.post("/api/auth/avatar", requireAuth, avatarUpload.single("avatar"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No se subió ninguna imagen" });
+      }
+      const profileImageUrl = `/uploads/avatars/${req.file.filename}`;
+      const updated = await storage.updateUser(req.user!.id, { profileImageUrl });
+      if (!updated) return res.status(404).json({ message: "Usuario no encontrado" });
+      const { passwordHash: _, ...safeUser } = updated;
+      res.json(safeUser);
+    } catch (error) {
+      console.error("Avatar upload error:", error);
+      res.status(500).json({ message: "Error al subir la imagen" });
+    }
+  });
+
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     app.get("/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));

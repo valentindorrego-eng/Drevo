@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { User, Ruler, Weight, Save, LogOut } from "lucide-react";
+import { User, Ruler, Save, LogOut, Camera } from "lucide-react";
 
 export default function Profile() {
   const [, setLocation] = useLocation();
-  const { user, isLoading, isAuthenticated, updateProfile, logout } = useAuth();
+  const { user, isLoading, isAuthenticated, updateProfile, logout, uploadAvatar } = useAuth();
   const { toast } = useToast();
 
   const [displayName, setDisplayName] = useState("");
@@ -78,14 +78,39 @@ export default function Profile() {
               <h1 className="text-3xl font-display font-bold" data-testid="text-profile-title">Mi perfil</h1>
               <p className="text-neutral-400 text-sm mt-1">{user?.email}</p>
             </div>
-            {user?.profileImageUrl && (
-              <img
-                src={user.profileImageUrl}
-                alt="Perfil"
-                className="w-14 h-14 rounded-full border-2 border-neutral-700"
-                data-testid="img-profile-avatar"
-              />
-            )}
+            <div className="relative group">
+              {user?.profileImageUrl ? (
+                <img
+                  src={user.profileImageUrl}
+                  alt="Perfil"
+                  className="w-16 h-16 rounded-full border-2 border-neutral-700 object-cover"
+                  data-testid="img-profile-avatar"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-neutral-800 border-2 border-neutral-700 flex items-center justify-center" data-testid="img-profile-avatar-placeholder">
+                  <User className="w-8 h-8 text-neutral-500" />
+                </div>
+              )}
+              <label className="absolute inset-0 flex items-center justify-center rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" data-testid="button-upload-avatar">
+                <Camera className="w-5 h-5 text-white" />
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      await uploadAvatar.mutateAsync(file);
+                      toast({ title: "Foto actualizada" });
+                    } catch {
+                      toast({ title: "Error", description: "No se pudo subir la foto", variant: "destructive" });
+                    }
+                  }}
+                  data-testid="input-avatar-file"
+                />
+              </label>
+            </div>
           </div>
 
           <form onSubmit={handleSave} className="space-y-6">

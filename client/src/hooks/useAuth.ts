@@ -76,6 +76,23 @@ export function useAuth() {
     },
   });
 
+  const uploadAvatarMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("avatar", file);
+      const res = await fetch("/api/auth/avatar", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+  });
+
   return {
     user: user ?? null,
     isLoading,
@@ -84,5 +101,6 @@ export function useAuth() {
     register: registerMutation,
     logout: logoutMutation,
     updateProfile: updateProfileMutation,
+    uploadAvatar: uploadAvatarMutation,
   };
 }
