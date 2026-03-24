@@ -283,7 +283,8 @@ export async function registerRoutes(
     try {
       const input = api.search.searchProducts.input.parse(req.body);
       const query = input.query.toLowerCase();
-      const userSize = input.userSize || null;
+      const authenticatedUser = req.user as { id: string; preferredSize?: string | null } | undefined;
+      const userSize = authenticatedUser?.preferredSize || input.userSize || null;
       const sizeFilterEnabled = input.sizeFilterEnabled !== false && !!userSize;
       
       // Intent extraction with strict JSON schema
