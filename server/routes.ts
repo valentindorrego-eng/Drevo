@@ -1136,6 +1136,10 @@ Reply with ONLY valid JSON, no explanation.`
           if (imgData) imageParts.push({ inlineData: imgData });
         } else {
           try {
+            const parsedUrl = new URL(productImage);
+            if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+              throw new Error("Invalid product image URL protocol");
+            }
             const prodImgRes = await fetch(productImage);
             if (prodImgRes.ok) {
               const prodBytes = Buffer.from(await prodImgRes.arrayBuffer());

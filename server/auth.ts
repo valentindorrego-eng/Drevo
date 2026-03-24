@@ -18,6 +18,7 @@ declare global {
       weightKg: number | null;
       bodyType: string | null;
       profileImageUrl: string | null;
+      fullBodyImageUrl: string | null;
       createdAt: Date | null;
     }
   }

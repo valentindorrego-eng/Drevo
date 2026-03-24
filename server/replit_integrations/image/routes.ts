@@ -20,7 +20,7 @@ export function registerImageRoutes(app: Express): void {
       });
 
       const candidate = response.candidates?.[0];
-      const imagePart = candidate?.content?.parts?.find((part: any) => part.inlineData);
+      const imagePart = candidate?.content?.parts?.find((part: { inlineData?: { data?: string; mimeType?: string } }) => part.inlineData);
 
       if (!imagePart?.inlineData?.data) {
         return res.status(500).json({ error: "No image data in response" });
