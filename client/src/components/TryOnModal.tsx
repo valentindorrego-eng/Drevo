@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { X, Upload, Camera, Loader2, Sparkles, RotateCcw } from "lucide-react";
+import { X, Upload, Camera, Loader2, Sparkles, RotateCcw, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -11,6 +11,8 @@ interface TryOnModalProps {
   onClose: () => void;
 }
 
+type PhotoSource = "upload" | "profile";
+
 export function TryOnModal({ productId, productTitle, productImage, isOpen, onClose }: TryOnModalProps) {
   const { user } = useAuth();
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -18,21 +20,27 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
   const [errorMessage, setErrorMessage] = useState("");
   const [uploadedPhoto, setUploadedPhoto] = useState<File | null>(null);
   const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
+  const [photoSource, setPhotoSource] = useState<PhotoSource>(
+    user?.fullBodyImageUrl ? "profile" : "upload"
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const userPhoto = uploadedPreview || (user?.profileImageUrl ? user.profileImageUrl : null);
+  const profilePhoto = user?.fullBodyImageUrl || user?.profileImageUrl || null;
+
+  const activePhoto = photoSource === "profile" ? profilePhoto : uploadedPreview;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadedPhoto(file);
     setUploadedPreview(URL.createObjectURL(file));
+    setPhotoSource("upload");
     setResultImage(null);
     setStatus("idle");
   };
 
   const handleGenerate = async (forceRegenerate = false) => {
-    if (!userPhoto && !uploadedPhoto) {
+    if (!activePhoto && !uploadedPhoto) {
       setErrorMessage("Necesitás subir una foto o tener una foto de perfil");
       setStatus("error");
       return;
@@ -44,8 +52,10 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
     try {
       const formData = new FormData();
       formData.append("productId", productId);
-      if (uploadedPhoto) {
+      if (photoSource === "upload" && uploadedPhoto) {
         formData.append("userPhoto", uploadedPhoto);
+      } else {
+        formData.append("useProfilePhoto", "true");
       }
       if (forceRegenerate) {
         formData.append("forceRegenerate", "true");
@@ -122,15 +132,56 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
               <div className="space-y-2">
                 <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">Tu foto</p>
                 <div className="aspect-[3/4] bg-neutral-800 rounded-lg overflow-hidden border border-white/5 flex items-center justify-center relative">
-                  {userPhoto ? (
-                    <img src={userPhoto} alt="Tu foto" className="w-full h-full object-cover" data-testid="img-tryon-user" />
+                  {activePhoto ? (
+                    <img src={activePhoto} alt="Tu foto" className="w-full h-full object-cover" data-testid="img-tryon-user" />
                   ) : (
                     <div className="text-center p-4">
                       <Camera className="w-8 h-8 text-neutral-600 mx-auto mb-2" />
-                      <p className="text-sm text-neutral-500">Sin foto</p>
+                      <p className="text-sm text-neutral-500">Subí una foto de cuerpo completo</p>
                     </div>
                   )}
                 </div>
+
+                {profilePhoto && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setPhotoSource("profile"); setResultImage(null); setStatus("idle"); }}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs rounded-lg border transition-colors ${
+                        photoSource === "profile"
+                          ? "bg-[#C8FF00]/10 border-[#C8FF00]/30 text-[#C8FF00]"
+                          : "bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10"
+                      }`}
+                      data-testid="button-use-profile-photo"
+                    >
+                      <User className="w-3.5 h-3.5" />
+                      Mi foto
+                    </button>
+                    <button
+                      onClick={() => { setPhotoSource("upload"); fileInputRef.current?.click(); }}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs rounded-lg border transition-colors ${
+                        photoSource === "upload"
+                          ? "bg-[#C8FF00]/10 border-[#C8FF00]/30 text-[#C8FF00]"
+                          : "bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10"
+                      }`}
+                      data-testid="button-upload-new-photo"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Subir otra
+                    </button>
+                  </div>
+                )}
+
+                {!profilePhoto && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 py-2 text-sm bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300 transition-colors"
+                    data-testid="button-upload-tryon-photo"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {uploadedPreview ? "Cambiar foto" : "Subir foto"}
+                  </button>
+                )}
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -139,14 +190,10 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                   className="hidden"
                   data-testid="input-tryon-photo"
                 />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-2 py-2 text-sm bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300 transition-colors"
-                  data-testid="button-upload-tryon-photo"
-                >
-                  <Upload className="w-4 h-4" />
-                  {userPhoto ? "Cambiar foto" : "Subir foto"}
-                </button>
+
+                <p className="text-[10px] text-neutral-600 text-center leading-tight">
+                  Usá una foto de cuerpo completo, de frente, con buena iluminación
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -160,8 +207,8 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
 
             {status === "idle" && (
               <button
-                onClick={handleGenerate}
-                disabled={!userPhoto && !uploadedPhoto}
+                onClick={() => handleGenerate()}
+                disabled={!activePhoto && !uploadedPhoto}
                 className="w-full py-4 bg-[#C8FF00] text-black font-bold rounded-xl hover:bg-[#A3D600] transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
                 data-testid="button-generate-tryon"
               >

@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { User, Ruler, Save, LogOut, Camera } from "lucide-react";
+import { User, Ruler, Save, LogOut, Camera, Sparkles, Upload } from "lucide-react";
 
 export default function Profile() {
   const [, setLocation] = useLocation();
-  const { user, isLoading, isAuthenticated, updateProfile, logout, uploadAvatar } = useAuth();
+  const { user, isLoading, isAuthenticated, updateProfile, logout, uploadAvatar, uploadFullBody } = useAuth();
   const { toast } = useToast();
 
   const [displayName, setDisplayName] = useState("");
@@ -130,6 +130,55 @@ export default function Profile() {
                   className="mt-1 bg-neutral-900 border-neutral-700 text-white placeholder:text-neutral-500"
                   data-testid="input-profile-name"
                 />
+              </div>
+            </div>
+
+            <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-6 space-y-4">
+              <h2 className="text-lg font-display font-semibold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-[#C8FF00]" />
+                Foto para probador virtual
+              </h2>
+              <p className="text-neutral-500 text-sm">Subí una foto de cuerpo completo para usar en el probador virtual. De frente, con buena luz.</p>
+
+              <div className="flex items-start gap-4">
+                <div className="w-32 h-44 rounded-lg overflow-hidden border border-neutral-700 bg-neutral-800 flex-shrink-0">
+                  {user?.fullBodyImageUrl ? (
+                    <img
+                      src={user.fullBodyImageUrl}
+                      alt="Cuerpo completo"
+                      className="w-full h-full object-cover"
+                      data-testid="img-fullbody"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-neutral-600">
+                      <User className="w-8 h-8 mb-1" />
+                      <span className="text-xs">Sin foto</span>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <label className="flex items-center justify-center gap-2 py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300 text-sm cursor-pointer transition-colors" data-testid="button-upload-fullbody">
+                    <Upload className="w-4 h-4" />
+                    {user?.fullBodyImageUrl ? "Cambiar foto" : "Subir foto"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          await uploadFullBody.mutateAsync(file);
+                          toast({ title: "Foto de cuerpo completo actualizada" });
+                        } catch {
+                          toast({ title: "Error", description: "No se pudo subir la foto", variant: "destructive" });
+                        }
+                      }}
+                      data-testid="input-fullbody-file"
+                    />
+                  </label>
+                  <p className="text-[11px] text-neutral-600 leading-tight">Esta foto se usa en el probador virtual para mostrarte cómo te queda cada prenda. Max 10MB.</p>
+                </div>
               </div>
             </div>
 

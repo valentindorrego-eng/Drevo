@@ -11,6 +11,7 @@ export interface AuthUser {
   weightKg: number | null;
   bodyType: string | null;
   profileImageUrl: string | null;
+  fullBodyImageUrl: string | null;
   createdAt: string | null;
 }
 
@@ -93,6 +94,23 @@ export function useAuth() {
     },
   });
 
+  const uploadFullBodyMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("fullbody", file);
+      const res = await fetch("/api/auth/fullbody", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    },
+  });
+
   return {
     user: user ?? null,
     isLoading,
@@ -102,5 +120,6 @@ export function useAuth() {
     logout: logoutMutation,
     updateProfile: updateProfileMutation,
     uploadAvatar: uploadAvatarMutation,
+    uploadFullBody: uploadFullBodyMutation,
   };
 }

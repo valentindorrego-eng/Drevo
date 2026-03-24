@@ -182,6 +182,36 @@ export async function registerRoutes(
     }
   });
 
+  const fullBodyUpload = multer({
+    storage: multer.diskStorage({
+      destination: path.join(process.cwd(), "uploads", "avatars"),
+      filename: (_req, file, cb) => {
+        const ext = mimeToExt[file.mimetype] || ".jpg";
+        cb(null, `fullbody-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+      },
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      cb(null, file.mimetype in mimeToExt);
+    },
+  });
+
+  app.post("/api/auth/fullbody", requireAuth, fullBodyUpload.single("fullbody"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No se subió ninguna imagen" });
+      }
+      const fullBodyImageUrl = `/uploads/avatars/${req.file.filename}`;
+      const updated = await storage.updateUser(req.user!.id, { fullBodyImageUrl });
+      if (!updated) return res.status(404).json({ message: "Usuario no encontrado" });
+      const { passwordHash: _, ...safeUser } = updated;
+      res.json(safeUser);
+    } catch (error) {
+      console.error("Full body upload error:", error);
+      res.status(500).json({ message: "Error al subir la imagen" });
+    }
+  });
+
   app.use("/uploads/tryon", requireAuth, express.static(path.join(process.cwd(), "uploads", "tryon")));
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
@@ -1057,12 +1087,19 @@ Reply with ONLY valid JSON, no explanation.`
         return res.status(429).json({ message: "Alcanzaste el límite de pruebas virtuales. Intentá de nuevo en una hora." });
       }
 
-      let userImageUrl = req.user!.profileImageUrl || null;
+      const { useProfilePhoto } = req.body;
+      const user = req.user!;
+
+      let userImageUrl: string | null = null;
       if (req.file) {
         userImageUrl = `/uploads/tryon/${req.file.filename}`;
+      } else if (useProfilePhoto === "true") {
+        userImageUrl = user.fullBodyImageUrl || user.profileImageUrl || null;
+      } else {
+        userImageUrl = user.fullBodyImageUrl || user.profileImageUrl || null;
       }
       if (!userImageUrl) {
-        return res.status(400).json({ message: "Se necesita una foto. Subí una o configurá tu foto de perfil." });
+        return res.status(400).json({ message: "Se necesita una foto. Subí una en tu perfil o acá." });
       }
 
       const productImage = product.images?.[0]?.url || null;
@@ -1070,54 +1107,70 @@ Reply with ONLY valid JSON, no explanation.`
       const productDescription = product.description || "";
       const productTagsList = product.tags?.map((t: { tag?: string } | string) => typeof t === 'string' ? t : (t.tag || '')).join(", ") || "";
 
-      const user = req.user!;
       const physicalDesc = [
-        user.heightCm ? `${user.heightCm}cm de altura` : null,
+        user.heightCm ? `${user.heightCm}cm tall` : null,
         user.weightKg ? `${user.weightKg}kg` : null,
-        user.bodyType ? `contextura ${user.bodyType}` : null,
+        user.bodyType ? `${user.bodyType} body type` : null,
       ].filter(Boolean).join(", ");
+
+      function readLocalImage(imgPath: string): { data: string; mimeType: string } | null {
+        const localPath = path.join(process.cwd(), imgPath);
+        if (!fs.existsSync(localPath)) return null;
+        const bytes = fs.readFileSync(localPath);
+        const ext = path.extname(localPath).replace(".", "").toLowerCase() || "png";
+        const mimeType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+        return { data: bytes.toString("base64"), mimeType };
+      }
 
       const imageParts: { inlineData: { data: string; mimeType: string } }[] = [];
 
       if (userImageUrl.startsWith("/")) {
-        const localPath = path.join(process.cwd(), userImageUrl);
-        if (fs.existsSync(localPath)) {
-          const bytes = fs.readFileSync(localPath);
-          const ext = path.extname(localPath).replace(".", "") || "png";
-          const mimeType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
-          imageParts.push({ inlineData: { data: bytes.toString("base64"), mimeType } });
+        const imgData = readLocalImage(userImageUrl);
+        if (imgData) imageParts.push({ inlineData: imgData });
+      }
+
+      if (productImage) {
+        if (productImage.startsWith("/")) {
+          const imgData = readLocalImage(productImage);
+          if (imgData) imageParts.push({ inlineData: imgData });
+        } else {
+          try {
+            const prodImgRes = await fetch(productImage);
+            if (prodImgRes.ok) {
+              const prodBytes = Buffer.from(await prodImgRes.arrayBuffer());
+              const contentType = prodImgRes.headers.get("content-type") || "image/jpeg";
+              imageParts.push({ inlineData: { data: prodBytes.toString("base64"), mimeType: contentType } });
+            }
+          } catch (e) {
+            console.error("Failed to fetch product image for try-on:", e);
+          }
         }
       }
 
-      if (productImage && !productImage.startsWith("/")) {
-        try {
-          const prodImgRes = await fetch(productImage);
-          if (prodImgRes.ok) {
-            const prodBytes = Buffer.from(await prodImgRes.arrayBuffer());
-            const contentType = prodImgRes.headers.get("content-type") || "image/jpeg";
-            imageParts.push({ inlineData: { data: prodBytes.toString("base64"), mimeType: contentType } });
-          }
-        } catch (e) {
-          console.error("Failed to fetch product image for try-on:", e);
-        }
+      if (imageParts.length < 2) {
+        return res.status(400).json({ message: "No se pudieron cargar las imágenes necesarias" });
       }
 
       const { Modality } = await import("@google/genai");
       const { ai } = await import("./replit_integrations/image/client");
 
-      const tryonPrompt = `You are a virtual try-on system. I'm providing ${imageParts.length === 2 ? "two images: the FIRST image is a photo of a PERSON, and the SECOND image is a CLOTHING ITEM" : imageParts.length === 1 ? "one image of a person" : "no images"}.
+      const tryonPrompt = `VIRTUAL TRY-ON TASK:
 
-Your task: Generate a realistic photo of THIS EXACT SAME PERSON (preserve their face, hair, skin tone, body type, and all physical features exactly) wearing the clothing item "${productTitle}" (${productDescription}). Tags: ${productTagsList}.
-${physicalDesc ? `Physical details: ${physicalDesc}.` : ""}
+I am giving you exactly 2 images:
+- IMAGE 1: A photo of a real person (the customer)
+- IMAGE 2: A clothing product called "${productTitle}"
 
-CRITICAL RULES:
-- The person in the output MUST look identical to the person in the input photo - same face, same hair, same skin tone, same body proportions
-- The clothing item must match the product shown exactly - same color, pattern, design, logos
-- Show a full-body or 3/4 body shot
-- Use a clean, neutral background (white or light gray studio)
-- Professional fashion photography lighting
-- The clothing should fit naturally on the person's body
-- Do NOT change the person's appearance, ethnicity, or features in any way`;
+YOUR JOB: Edit IMAGE 1 to replace the person's current top/clothing with the EXACT garment shown in IMAGE 2. This is a virtual try-on — you must digitally dress the person in the product.
+
+MANDATORY REQUIREMENTS:
+1. KEEP THE PERSON IDENTICAL: Same face, same hair, same skin tone, same pose, same body shape, same expression. Do NOT generate a different person.
+2. PUT THE EXACT PRODUCT ON THEM: The garment from IMAGE 2 must appear on the person's body — same color, same pattern, same logo, same design details. Do NOT invent a different garment.
+3. NATURAL FIT: The garment should look naturally worn — proper draping, wrinkles, and fit based on the person's body.
+4. KEEP THE SAME FRAMING: Use a similar camera angle and framing as IMAGE 1. If the person is shown from the waist up, keep that framing. If full-body, keep full-body.
+5. CLEAN BACKGROUND: Use a clean neutral studio background (white or light gray).
+${physicalDesc ? `6. Person's measurements: ${physicalDesc}` : ""}
+
+Think of it as a photo editing task: take the person from IMAGE 1 and swap their clothing with the product from IMAGE 2.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-image",

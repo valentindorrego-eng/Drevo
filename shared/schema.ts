@@ -120,6 +120,7 @@ export const users = pgTable("users", {
   weightKg: integer("weight_kg"),
   bodyType: text("body_type"),
   profileImageUrl: text("profile_image_url"),
+  fullBodyImageUrl: text("full_body_image_url"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
