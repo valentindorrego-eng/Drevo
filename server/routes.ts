@@ -1146,12 +1146,63 @@ Reply with ONLY valid JSON, no explanation.`
         const ext = path.extname(localPath).replace(".", "").toLowerCase() || "png";
         const mimeType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
         return { data: bytes.toString("base64"), mimeType };
-      }
+      };
+
+      const ALLOWED_IMAGE_HOSTS = [
+        "d2r9epyceweg5n.cloudfront.net",
+        "images.tiendanube.com",
+        "acdn.mitiendanube.com",
+        "d26lpennugtm8s.cloudfront.net",
+        "lh3.googleusercontent.com",
+        "platform-lookaside.fbsbx.com",
+        "avatars.githubusercontent.com",
+      ];
+
+      const isPrivateIp = (hostname: string): boolean => {
+        const parts = hostname.split(".").map(Number);
+        if (parts.length !== 4 || parts.some(isNaN)) return false;
+        if (parts[0] === 10) return true;
+        if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+        if (parts[0] === 192 && parts[1] === 168) return true;
+        if (parts[0] === 127) return true;
+        if (parts[0] === 169 && parts[1] === 254) return true;
+        if (parts[0] === 0) return true;
+        return false;
+      };
+
+      const safeFetchImage = async (url: string): Promise<{ data: string; mimeType: string } | null> => {
+        try {
+          const parsedUrl = new URL(url);
+          if (parsedUrl.protocol !== "https:") return null;
+          if (isPrivateIp(parsedUrl.hostname)) return null;
+          if (!ALLOWED_IMAGE_HOSTS.some(h => parsedUrl.hostname === h || parsedUrl.hostname.endsWith(`.${h}`))) {
+            console.warn(`[try-on] Blocked fetch to untrusted host: ${parsedUrl.hostname}`);
+            return null;
+          }
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 10000);
+          const imgRes = await fetch(url, { signal: controller.signal, redirect: "follow" });
+          clearTimeout(timeout);
+          if (!imgRes.ok) return null;
+          const contentLength = imgRes.headers.get("content-length");
+          if (contentLength && parseInt(contentLength) > 10 * 1024 * 1024) return null;
+          const imgBytes = Buffer.from(await imgRes.arrayBuffer());
+          if (imgBytes.length > 10 * 1024 * 1024) return null;
+          const contentType = imgRes.headers.get("content-type") || "image/jpeg";
+          return { data: imgBytes.toString("base64"), mimeType: contentType };
+        } catch (e) {
+          console.error("[try-on] Failed to fetch image:", e);
+          return null;
+        }
+      };
 
       const imageParts: { inlineData: { data: string; mimeType: string } }[] = [];
 
       if (userImageUrl.startsWith("/")) {
         const imgData = readLocalImage(userImageUrl);
+        if (imgData) imageParts.push({ inlineData: imgData });
+      } else if (userImageUrl.startsWith("https://")) {
+        const imgData = await safeFetchImage(userImageUrl);
         if (imgData) imageParts.push({ inlineData: imgData });
       }
 
@@ -1159,21 +1210,9 @@ Reply with ONLY valid JSON, no explanation.`
         if (productImage.startsWith("/")) {
           const imgData = readLocalImage(productImage);
           if (imgData) imageParts.push({ inlineData: imgData });
-        } else {
-          try {
-            const parsedUrl = new URL(productImage);
-            if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-              throw new Error("Invalid product image URL protocol");
-            }
-            const prodImgRes = await fetch(productImage);
-            if (prodImgRes.ok) {
-              const prodBytes = Buffer.from(await prodImgRes.arrayBuffer());
-              const contentType = prodImgRes.headers.get("content-type") || "image/jpeg";
-              imageParts.push({ inlineData: { data: prodBytes.toString("base64"), mimeType: contentType } });
-            }
-          } catch (e) {
-            console.error("Failed to fetch product image for try-on:", e);
-          }
+        } else if (productImage.startsWith("https://")) {
+          const imgData = await safeFetchImage(productImage);
+          if (imgData) imageParts.push({ inlineData: imgData });
         }
       }
 
