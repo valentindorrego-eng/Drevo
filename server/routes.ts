@@ -6,13 +6,17 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
 import { db, pool } from "./db";
-import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings, brandIntegrations } from "@shared/schema";
+import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings, brandIntegrations, type User } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { passport } from "./auth";
 import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+
+function getAuthUser(req: Request): User {
+  return req.user as User;
+}
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
@@ -122,7 +126,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Datos inválidos", errors: parsed.error.flatten().fieldErrors });
       }
       const { displayName, preferredSize, heightCm, weightKg, bodyType } = parsed.data;
-      const updated = await storage.updateUser(req.user!.id, {
+      const updated = await storage.updateUser(getAuthUser(req).id, {
         displayName,
         preferredSize,
         heightCm: heightCm ?? null,
@@ -172,7 +176,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No se subió ninguna imagen" });
       }
       const profileImageUrl = `/uploads/avatars/${req.file.filename}`;
-      const updated = await storage.updateUser(req.user!.id, { profileImageUrl });
+      const updated = await storage.updateUser(getAuthUser(req).id, { profileImageUrl });
       if (!updated) return res.status(404).json({ message: "Usuario no encontrado" });
       const { passwordHash: _, ...safeUser } = updated;
       res.json(safeUser);
@@ -202,7 +206,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No se subió ninguna imagen" });
       }
       const fullBodyImageUrl = `/uploads/avatars/${req.file.filename}`;
-      const updated = await storage.updateUser(req.user!.id, { fullBodyImageUrl });
+      const updated = await storage.updateUser(getAuthUser(req).id, { fullBodyImageUrl });
       if (!updated) return res.status(404).json({ message: "Usuario no encontrado" });
       const { passwordHash: _, ...safeUser } = updated;
       res.json(safeUser);
@@ -399,7 +403,7 @@ Reply with ONLY valid JSON, no explanation.`
               { role: "user", content: (() => {
                 let userMessage = input.query;
                 if (userSize) userMessage += `\n\n[User preferred size: ${userSize}]`;
-                const u = authenticatedUser as any;
+                const u = authenticatedUser as User;
                 if (u?.stylePassportCompleted) {
                   const prefs: string[] = [];
                   if (u.styleVibes?.length) prefs.push(`Estilo preferido: ${u.styleVibes.join(", ")}`);
@@ -1078,7 +1082,7 @@ Reply with ONLY valid JSON, no explanation.`
 
   app.get("/api/tryon/:productId", requireAuth, async (req, res) => {
     try {
-      const cached = await storage.getTryonResult((req.user as any).id, String(req.params.productId));
+      const cached = await storage.getTryonResult(getAuthUser(req).id, String(req.params.productId));
       if (cached) {
         return res.json(cached);
       }
@@ -1103,18 +1107,18 @@ Reply with ONLY valid JSON, no explanation.`
 
       const hasNewUpload = !!req.file;
       if (forceRegenerate !== "true" && !hasNewUpload) {
-        const cached = await storage.getTryonResult((req.user as any).id, productId);
+        const cached = await storage.getTryonResult(getAuthUser(req).id, productId);
         if (cached) {
           return res.json(cached);
         }
       }
 
-      if (!checkTryonRateLimit((req.user as any).id)) {
+      if (!checkTryonRateLimit(getAuthUser(req).id)) {
         return res.status(429).json({ message: "Alcanzaste el límite de pruebas virtuales. Intentá de nuevo en una hora." });
       }
 
       const { useProfilePhoto } = req.body;
-      const user = req.user!;
+      const user = getAuthUser(req);
 
       let userImageUrl: string | null = null;
       if (req.file) {
@@ -1266,13 +1270,13 @@ Image 2: the clothing item to apply`;
       }
 
       const imageBuffer = Buffer.from(generatedImagePart.inlineData.data, "base64");
-      const resultFilename = `tryon-${req.user!.id.slice(0, 8)}-${productId.slice(0, 8)}-${Date.now()}.png`;
+      const resultFilename = `tryon-${getAuthUser(req).id.slice(0, 8)}-${productId.slice(0, 8)}-${Date.now()}.png`;
       const resultPath = path.join(process.cwd(), "uploads", "tryon", resultFilename);
       fs.writeFileSync(resultPath, imageBuffer);
       const resultImageUrl = `/uploads/tryon/${resultFilename}`;
 
       const tryonResult = await storage.createTryonResult({
-        userId: req.user!.id,
+        userId: getAuthUser(req).id,
         productId,
         userImageUrl: userImageUrl,
         resultImageUrl,
@@ -1587,8 +1591,8 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
   app.get("/api/analytics/clicks", requireAuth, async (req, res) => {
     try {
-      const user = req.user as any;
-      if (!user?.role || user.role !== "admin") {
+      const user = getAuthUser(req);
+      if (!(user as Record<string, unknown>).role || (user as Record<string, unknown>).role !== "admin") {
         return res.status(403).json({ message: "Acceso denegado" });
       }
       const analytics = await storage.getClickAnalytics();
@@ -1604,7 +1608,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
   app.post("/api/user/style-passport", requireAuth, async (req, res) => {
     try {
       const { styleVibes, ocasionesFrecuentes, presupuestoRango, marcasFavoritas, coloresEvitar, estilosEvitar } = req.body;
-      const user = await storage.updateUser(req.user!.id, {
+      const user = await storage.updateUser(getAuthUser(req).id, {
         styleVibes: styleVibes || [],
         ocasionesFrecuentes: ocasionesFrecuentes || [],
         presupuestoRango: presupuestoRango || null,
@@ -1626,7 +1630,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
   app.get("/api/collections", requireAuth, async (req, res) => {
     try {
-      const userCollections = await storage.getCollectionsByUser(req.user!.id);
+      const userCollections = await storage.getCollectionsByUser(getAuthUser(req).id);
       res.json(userCollections);
     } catch (error) {
       console.error("Get collections error:", error);
@@ -1638,7 +1642,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
     try {
       const { name, emoji } = req.body;
       if (!name) return res.status(400).json({ message: "El nombre es obligatorio" });
-      const collection = await storage.createCollection({ userId: req.user!.id, name, emoji });
+      const collection = await storage.createCollection({ userId: getAuthUser(req).id, name, emoji });
       res.json(collection);
     } catch (error) {
       console.error("Create collection error:", error);
@@ -1649,7 +1653,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
   app.post("/api/collections/:id/items", requireAuth, async (req, res) => {
     try {
       const collectionId = String(req.params.id);
-      const userId = (req.user as any).id;
+      const userId = getAuthUser(req).id;
       const collection = await storage.getCollection(collectionId);
       if (!collection || collection.userId !== userId) {
         return res.status(403).json({ message: "Acceso denegado" });
@@ -1667,7 +1671,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
   app.delete("/api/collections/:id/items/:productId", requireAuth, async (req, res) => {
     try {
       const collectionId = String(req.params.id);
-      const userId = (req.user as any).id;
+      const userId = getAuthUser(req).id;
       const collection = await storage.getCollection(collectionId);
       if (!collection || collection.userId !== userId) {
         return res.status(403).json({ message: "Acceso denegado" });
@@ -1683,7 +1687,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
   app.get("/api/collections/:id/items", requireAuth, async (req, res) => {
     try {
       const collectionId = String(req.params.id);
-      const userId = (req.user as any).id;
+      const userId = getAuthUser(req).id;
       const collection = await storage.getCollection(collectionId);
       if (!collection || collection.userId !== userId) {
         return res.status(403).json({ message: "Acceso denegado" });
@@ -1698,7 +1702,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
   app.get("/api/user/saved-products", requireAuth, async (req, res) => {
     try {
-      const productIds = await storage.getUserSavedProductIds((req.user as any).id);
+      const productIds = await storage.getUserSavedProductIds(getAuthUser(req).id);
       res.json(productIds);
     } catch (error) {
       console.error("Get saved products error:", error);
