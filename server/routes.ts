@@ -213,7 +213,7 @@ export async function registerRoutes(
   });
 
   app.use("/uploads/tryon", requireAuth, express.static(path.join(process.cwd(), "uploads", "tryon")));
-  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+  app.use("/uploads/avatars", requireAuth, express.static(path.join(process.cwd(), "uploads", "avatars")));
 
   const googleEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
