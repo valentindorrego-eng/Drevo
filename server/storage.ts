@@ -1,7 +1,7 @@
 import { type User, type InsertUser, type TryonResult, users, products, productTags, productImages, productVariants, brands, categories, tryonResults } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -112,7 +112,9 @@ export class DatabaseStorage implements IStorage {
 
   async getTryonResult(userId: string, productId: string): Promise<TryonResult | undefined> {
     const result = await db.select().from(tryonResults)
-      .where(and(eq(tryonResults.userId, userId), eq(tryonResults.productId, productId)));
+      .where(and(eq(tryonResults.userId, userId), eq(tryonResults.productId, productId)))
+      .orderBy(desc(tryonResults.createdAt))
+      .limit(1);
     return result[0] || undefined;
   }
 

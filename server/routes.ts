@@ -16,6 +16,22 @@ import fs from "fs";
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
+const tryonRateLimit = new Map<string, number[]>();
+const TRYON_RATE_WINDOW_MS = 60 * 60 * 1000;
+const TRYON_RATE_MAX = 5;
+
+function checkTryonRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const timestamps = (tryonRateLimit.get(userId) || []).filter(t => now - t < TRYON_RATE_WINDOW_MS);
+  if (timestamps.length >= TRYON_RATE_MAX) {
+    tryonRateLimit.set(userId, timestamps);
+    return false;
+  }
+  timestamps.push(now);
+  tryonRateLimit.set(userId, timestamps);
+  return true;
+}
+
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (req.isAuthenticated()) return next();
   res.status(401).json({ message: "No autenticado" });
@@ -1037,6 +1053,10 @@ Reply with ONLY valid JSON, no explanation.`
         }
       }
 
+      if (!checkTryonRateLimit(req.user!.id)) {
+        return res.status(429).json({ message: "Alcanzaste el límite de pruebas virtuales. Intentá de nuevo en una hora." });
+      }
+
       if (!openai) {
         return res.status(503).json({ message: "Servicio de IA no disponible" });
       }
@@ -1061,13 +1081,23 @@ Reply with ONLY valid JSON, no explanation.`
         user.bodyType ? `contextura ${user.bodyType}` : null,
       ].filter(Boolean).join(", ");
 
-      const userImageFullUrl = userImageUrl.startsWith("/")
-        ? `${req.protocol}://${req.get("host")}${userImageUrl}`
-        : userImageUrl;
+      let userImageForVision: string | null = null;
+      if (userImageUrl && userImageUrl.startsWith("/")) {
+        const localPath = path.join(process.cwd(), userImageUrl);
+        if (fs.existsSync(localPath)) {
+          const bytes = fs.readFileSync(localPath);
+          const ext = path.extname(localPath).replace(".", "") || "png";
+          const mime = ext === "jpg" ? "jpeg" : ext;
+          userImageForVision = `data:image/${mime};base64,${bytes.toString("base64")}`;
+        }
+      } else if (userImageUrl) {
+        userImageForVision = userImageUrl;
+      }
 
-      const visionImages: { type: "image_url"; image_url: { url: string } }[] = [];
-      if (userImageFullUrl) {
-        visionImages.push({ type: "image_url", image_url: { url: userImageFullUrl } });
+      type VisionImagePart = { type: "image_url"; image_url: { url: string } };
+      const visionImages: VisionImagePart[] = [];
+      if (userImageForVision) {
+        visionImages.push({ type: "image_url", image_url: { url: userImageForVision } });
       }
       if (productImage) {
         visionImages.push({ type: "image_url", image_url: { url: productImage } });
@@ -1085,9 +1115,9 @@ Reply with ONLY valid JSON, no explanation.`
               content: [
                 {
                   type: "text",
-                  text: `I'm providing ${visionImages.length === 2 ? "two images: the first is a person's photo and the second is a clothing item" : visionImages.length === 1 && userImageFullUrl ? "a person's photo" : "a clothing item photo"}.
+                  text: `I'm providing ${visionImages.length === 2 ? "two images: the first is a person's photo and the second is a clothing item" : visionImages.length === 1 && userImageForVision ? "a person's photo" : "a clothing item photo"}.
 
-${userImageFullUrl ? "For the person: Describe their general appearance, body type, skin tone, hair color/style, and overall look in detail. DO NOT describe their clothing." : ""}
+${userImageForVision ? "For the person: Describe their general appearance, body type, skin tone, hair color/style, and overall look in detail. DO NOT describe their clothing." : ""}
 For the clothing item "${productTitle}" (tags: ${productTagsList}): Describe the garment in detail including type, color, pattern, fabric, fit style, and any distinctive details.
 
 Provide your response as JSON: {"person": "description of person", "garment": "description of garment"}`
