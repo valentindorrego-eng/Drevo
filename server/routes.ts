@@ -796,7 +796,7 @@ Reply with ONLY valid JSON, no explanation.`
                   basePrice: Number(chosen.basePrice), salePrice: chosen.salePrice ? Number(chosen.salePrice) : null,
                   currency: chosen.currency, gender: chosen.gender, categoryId: chosen.categoryId,
                   brand: null, images: chosen.images || [], variants: chosen.variants || [],
-                  tags: chosen.tags?.map((t: { tag?: string }) => t.tag || '') || [],
+                  tags: chosen.tags?.map((t: string | { tag?: string }) => typeof t === 'string' ? t : (t.tag || '')) || [],
                   similarity: 0.5, reasons: ["Complemento de outfit"],
                   _hasUserSize: chosenHasSize,
                 };
@@ -853,7 +853,7 @@ Reply with ONLY valid JSON, no explanation.`
                 basePrice: Number(chosen.basePrice), salePrice: chosen.salePrice ? Number(chosen.salePrice) : null,
                 currency: chosen.currency, gender: chosen.gender, categoryId: chosen.categoryId,
                 brand: null, images: chosen.images || [], variants: chosen.variants || [],
-                tags: chosen.tags?.map((t: { tag?: string }) => t.tag || '') || [],
+                tags: chosen.tags?.map((t: string | { tag?: string }) => typeof t === 'string' ? t : (t.tag || '')) || [],
                 similarity: 0.5, reasons: ["Complemento de outfit"],
                 _hasUserSize: chosenHasSize,
               };
