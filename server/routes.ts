@@ -1057,10 +1057,6 @@ Reply with ONLY valid JSON, no explanation.`
         return res.status(429).json({ message: "Alcanzaste el límite de pruebas virtuales. Intentá de nuevo en una hora." });
       }
 
-      if (!openai) {
-        return res.status(503).json({ message: "Servicio de IA no disponible" });
-      }
-
       let userImageUrl = req.user!.profileImageUrl || null;
       if (req.file) {
         userImageUrl = `/uploads/tryon/${req.file.filename}`;
@@ -1081,84 +1077,72 @@ Reply with ONLY valid JSON, no explanation.`
         user.bodyType ? `contextura ${user.bodyType}` : null,
       ].filter(Boolean).join(", ");
 
-      let userImageForVision: string | null = null;
-      if (userImageUrl && userImageUrl.startsWith("/")) {
+      const imageParts: { inlineData: { data: string; mimeType: string } }[] = [];
+
+      if (userImageUrl.startsWith("/")) {
         const localPath = path.join(process.cwd(), userImageUrl);
         if (fs.existsSync(localPath)) {
           const bytes = fs.readFileSync(localPath);
           const ext = path.extname(localPath).replace(".", "") || "png";
-          const mime = ext === "jpg" ? "jpeg" : ext;
-          userImageForVision = `data:image/${mime};base64,${bytes.toString("base64")}`;
+          const mimeType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+          imageParts.push({ inlineData: { data: bytes.toString("base64"), mimeType } });
         }
-      } else if (userImageUrl) {
-        userImageForVision = userImageUrl;
       }
 
-      type VisionImagePart = { type: "image_url"; image_url: { url: string } };
-      const visionImages: VisionImagePart[] = [];
-      if (userImageForVision) {
-        visionImages.push({ type: "image_url", image_url: { url: userImageForVision } });
-      }
-      if (productImage) {
-        visionImages.push({ type: "image_url", image_url: { url: productImage } });
-      }
-
-      let personDescription = physicalDesc || "a person";
-      let garmentDescription = `${productTitle}. ${productDescription}`;
-
-      if (visionImages.length > 0) {
-        const visionResponse = await openai.chat.completions.create({
-          model: process.env.OPENAI_VISION_MODEL || "gpt-4o",
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: `I'm providing ${visionImages.length === 2 ? "two images: the first is a person's photo and the second is a clothing item" : visionImages.length === 1 && userImageForVision ? "a person's photo" : "a clothing item photo"}.
-
-${userImageForVision ? "For the person: Describe their general appearance, body type, skin tone, hair color/style, and overall look in detail. DO NOT describe their clothing." : ""}
-For the clothing item "${productTitle}" (tags: ${productTagsList}): Describe the garment in detail including type, color, pattern, fabric, fit style, and any distinctive details.
-
-Provide your response as JSON: {"person": "description of person", "garment": "description of garment"}`
-                },
-                ...visionImages,
-              ],
-            },
-          ],
-          max_tokens: 500,
-          response_format: { type: "json_object" },
-        });
-
+      if (productImage && !productImage.startsWith("/")) {
         try {
-          const parsed = JSON.parse(visionResponse.choices[0]?.message?.content || "{}");
-          if (parsed.person) personDescription = parsed.person;
-          if (parsed.garment) garmentDescription = parsed.garment;
-        } catch {
-          console.error("Failed to parse vision response");
+          const prodImgRes = await fetch(productImage);
+          if (prodImgRes.ok) {
+            const prodBytes = Buffer.from(await prodImgRes.arrayBuffer());
+            const contentType = prodImgRes.headers.get("content-type") || "image/jpeg";
+            imageParts.push({ inlineData: { data: prodBytes.toString("base64"), mimeType: contentType } });
+          }
+        } catch (e) {
+          console.error("Failed to fetch product image for try-on:", e);
         }
       }
 
-      const tryonPrompt = `A fashion photography portrait of ${personDescription} wearing: ${garmentDescription}. Full-body shot, clean white studio background, natural lighting, professional fashion catalog style. The clothing should look natural and well-fitted on the person. Realistic, high quality photograph.`;
+      const { Modality } = await import("@google/genai");
+      const { ai } = await import("./replit_integrations/image/client");
 
-      const imageResponse = await openai.images.generate({
-        model: "dall-e-3",
-        prompt: tryonPrompt,
-        n: 1,
-        size: "1024x1792",
-        quality: "standard",
+      const tryonPrompt = `You are a virtual try-on system. I'm providing ${imageParts.length === 2 ? "two images: the FIRST image is a photo of a PERSON, and the SECOND image is a CLOTHING ITEM" : imageParts.length === 1 ? "one image of a person" : "no images"}.
+
+Your task: Generate a realistic photo of THIS EXACT SAME PERSON (preserve their face, hair, skin tone, body type, and all physical features exactly) wearing the clothing item "${productTitle}" (${productDescription}). Tags: ${productTagsList}.
+${physicalDesc ? `Physical details: ${physicalDesc}.` : ""}
+
+CRITICAL RULES:
+- The person in the output MUST look identical to the person in the input photo - same face, same hair, same skin tone, same body proportions
+- The clothing item must match the product shown exactly - same color, pattern, design, logos
+- Show a full-body or 3/4 body shot
+- Use a clean, neutral background (white or light gray studio)
+- Professional fashion photography lighting
+- The clothing should fit naturally on the person's body
+- Do NOT change the person's appearance, ethnicity, or features in any way`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-image",
+        contents: [{
+          role: "user",
+          parts: [
+            { text: tryonPrompt },
+            ...imageParts,
+          ],
+        }],
+        config: {
+          responseModalities: [Modality.TEXT, Modality.IMAGE],
+        },
       });
 
-      const generatedUrl = imageResponse.data[0]?.url;
-      if (!generatedUrl) {
+      const candidate = response.candidates?.[0];
+      const generatedImagePart = candidate?.content?.parts?.find(
+        (part: { inlineData?: { data?: string; mimeType?: string } }) => part.inlineData
+      );
+
+      if (!generatedImagePart?.inlineData?.data) {
         return res.status(500).json({ message: "No se pudo generar la imagen" });
       }
 
-      const imageRes = await fetch(generatedUrl);
-      if (!imageRes.ok) {
-        return res.status(500).json({ message: "Error al descargar la imagen generada" });
-      }
-      const imageBuffer = Buffer.from(await imageRes.arrayBuffer());
+      const imageBuffer = Buffer.from(generatedImagePart.inlineData.data, "base64");
       const resultFilename = `tryon-${req.user!.id.slice(0, 8)}-${productId.slice(0, 8)}-${Date.now()}.png`;
       const resultPath = path.join(process.cwd(), "uploads", "tryon", resultFilename);
       fs.writeFileSync(resultPath, imageBuffer);

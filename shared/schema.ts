@@ -156,3 +156,5 @@ export type BrandIntegration = typeof brandIntegrations.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type TryonResult = typeof tryonResults.$inferSelect;
+
+export * from "./models/chat";

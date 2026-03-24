@@ -100,9 +100,19 @@ Preferred communication style: Simple, everyday language.
   2. **Chat Completions** (`gpt-4o-mini` by default, configurable via `OPENAI_CHAT_MODEL` secret) — extracts structured fashion intent from natural language queries
   - Requires `OPENAI_API_KEY` secret. Search degrades gracefully (basic text matching) if key is missing.
 
+### Virtual Try-On Pipeline
+- Uses **Gemini 2.5 Flash Image** (`gemini-2.5-flash-image` / "nano banana") via Replit AI Integrations
+- Multimodal input: user photo + product image sent as base64 inline data
+- Single-call generation: Gemini receives both images and generates the try-on result directly
+- No separate "describe then generate" step — native image-conditioned generation
+- Per-user rate limiting (5 generations/hour), DB-backed caching with latest-result retrieval
+- Auth-gated `/uploads/tryon` route for privacy
+- Integration files: `server/replit_integrations/image/` (client + routes), `server/replit_integrations/chat/` (chat module), `server/replit_integrations/batch/` (batch utilities)
+
 ### Key NPM Packages
 - `drizzle-orm` + `drizzle-kit` — ORM and migration tooling for PostgreSQL
-- `openai` — Official OpenAI SDK
+- `openai` — Official OpenAI SDK (embeddings + intent extraction)
+- `@google/genai` — Google Gemini SDK (virtual try-on image generation via Replit AI Integrations)
 - `express` v5 — HTTP server
 - `@tanstack/react-query` — Client-side data fetching/caching
 - `framer-motion` — Animations
@@ -110,6 +120,7 @@ Preferred communication style: Simple, everyday language.
 - `zod` + `drizzle-zod` — Schema validation
 - `shadcn/ui` ecosystem (Radix primitives, Tailwind, class-variance-authority)
 - `pg` — PostgreSQL client (node-postgres)
+- `p-limit` + `p-retry` — Batch processing rate limiting and retries
 
 ### Environment Variables
 | Variable | Required | Description |
@@ -119,6 +130,8 @@ Preferred communication style: Simple, everyday language.
 | `OPENAI_EMBEDDING_MODEL` | No | Override embedding model (default: `text-embedding-3-small`) |
 | `OPENAI_CHAT_MODEL` | No | Override chat model for intent extraction (default: `gpt-4o-mini`) |
 | `OPENAI_VISION_MODEL` | No | Override vision model for product image analysis during sync (default: `gpt-4o`) |
+| `AI_INTEGRATIONS_GEMINI_BASE_URL` | Auto | Gemini API base URL (auto-set by Replit AI Integrations) |
+| `AI_INTEGRATIONS_GEMINI_API_KEY` | Auto | Gemini API key (auto-set by Replit AI Integrations) |
 | `SESSION_SECRET` | Yes (prod) | Session signing secret (required in production, has dev fallback) |
 | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID (enables Google login) |
 | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
