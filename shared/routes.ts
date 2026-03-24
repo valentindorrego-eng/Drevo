@@ -40,7 +40,7 @@ export const searchResponseSchema = z.object({
   }).optional(),
   outfit_bundles: z.array(z.object({
     title: z.string(),
-    items: z.array(searchResultProductSchema)
+    items: z.array(searchResultProductSchema.extend({ slot: z.string().optional() }))
   })).optional(),
   sizeFilter: z.object({
     size: z.string(),

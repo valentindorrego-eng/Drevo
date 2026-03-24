@@ -627,16 +627,16 @@ Reply with ONLY valid JSON, no explanation.`
       }).sort((a, b) => b.similarity - a.similarity);
 
       interface ScoredProduct {
-        id: number;
+        id: string;
         title: string;
         description: string | null;
         basePrice: number;
         salePrice: number | null;
-        currency: string;
+        currency: string | null;
         gender: string | null;
-        categoryId: number | null;
+        categoryId: string | null;
         brand: { name: string; slug: string } | null;
-        images: { url: string; position: number }[];
+        images: { url: string; position: number | null }[];
         variants: { sizeLabel: string | null; stockQty: number | null }[];
         tags: string[];
         similarity: number;
