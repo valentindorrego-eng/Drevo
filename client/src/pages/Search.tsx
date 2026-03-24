@@ -285,8 +285,8 @@ export default function Search() {
                       <h2 className="text-3xl font-display font-bold tracking-tight">Outfit recomendado por Drevo</h2>
                     </div>
                     
-                    <div className={`grid grid-cols-1 gap-8 relative z-10 ${searchResults.outfit_bundles[0].items.length >= 4 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
-                      {searchResults.outfit_bundles[0].items.map((item: any, idx: number) => {
+                    <div className={`grid grid-cols-1 gap-8 relative z-10 ${searchResults.outfit_bundles![0].items.length >= 4 ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+                      {searchResults.outfit_bundles![0].items.map((item: any, idx: number) => {
                         const label = item.slot || ['Superior', 'Inferior', 'Calzado', 'Accesorio'][idx] || 'Accesorio';
                         return (
                           <div key={item.id} className="relative group">
@@ -301,7 +301,7 @@ export default function Search() {
                     
                     <div className="mt-12 flex justify-center relative z-10">
                       <button
-                        onClick={() => handleBuyOutfit(searchResults.outfit_bundles[0].items)}
+                        onClick={() => handleBuyOutfit(searchResults.outfit_bundles![0].items)}
                         className="flex items-center gap-3 bg-[#C8FF00] text-black px-10 py-4 rounded-full font-bold hover:bg-[#A3D600] transition-all hover:scale-105 active:scale-95 shadow-2xl"
                         data-testid="button-buy-outfit"
                       >

@@ -24,6 +24,7 @@ export interface IStorage {
   getClickAnalytics(): Promise<any>;
 
   getCollectionsByUser(userId: string): Promise<Collection[]>;
+  getCollection(id: string): Promise<Collection | undefined>;
   createCollection(data: { userId: string; name: string; emoji?: string; isDefault?: boolean }): Promise<Collection>;
   addCollectionItem(collectionId: string, productId: string): Promise<CollectionItem>;
   removeCollectionItem(collectionId: string, productId: string): Promise<void>;
@@ -184,6 +185,11 @@ export class DatabaseStorage implements IStorage {
 
   async getCollectionsByUser(userId: string): Promise<Collection[]> {
     return db.select().from(collections).where(eq(collections.userId, userId)).orderBy(desc(collections.createdAt));
+  }
+
+  async getCollection(id: string): Promise<Collection | undefined> {
+    const result = await db.select().from(collections).where(eq(collections.id, id));
+    return result[0] || undefined;
   }
 
   async createCollection(data: { userId: string; name: string; emoji?: string; isDefault?: boolean }): Promise<Collection> {

@@ -247,8 +247,7 @@ export async function registerRoutes(
     res.redirect(authUrl);
   });
 
-  // Get all integrations (for frontend status check)
-  app.get("/api/integrations", async (req, res) => {
+  app.get("/api/integrations", requireAuth, async (req, res) => {
     try {
       const integrations = await db.select({
         id: brandIntegrations.id,
@@ -313,7 +312,7 @@ export async function registerRoutes(
         .where(sql`provider = 'tiendanube' AND store_id = ${storeIdStr}`);
       if (existing.length > 0) {
         await db.update(brandIntegrations)
-          .set({ accessToken: access_token, updatedAt: new Date() })
+          .set({ accessToken: access_token })
           .where(eq(brandIntegrations.id, existing[0].id));
       } else {
         await db.insert(brandIntegrations).values({
@@ -699,7 +698,7 @@ Reply with ONLY valid JSON, no explanation.`
           variants: p.variants.map((v: any) => ({ sizeLabel: v.sizeLabel, stockQty: v.stockQty })),
           tags: p.tags.map((t: any) => t.tag),
           similarity: Math.max(0, Math.min(1, score)),
-          reasons: [...new Set(reasons)].slice(0, 3),
+          reasons: Array.from(new Set(reasons)).slice(0, 3),
           _hasUserSize: hasUserSize,
         };
       }).sort((a, b) => b.similarity - a.similarity);
@@ -822,7 +821,7 @@ Reply with ONLY valid JSON, no explanation.`
             campera: ["campera", "jacket"],
             buzo: ["buzo", "hoodie"],
           };
-          const exactTypeWords = [...new Set(rawTypeWords.flatMap(w => synonymMap[w] || [w]))];
+          const exactTypeWords = Array.from(new Set<string>(rawTypeWords.flatMap((w: string) => synonymMap[w] || [w])));
 
           const slotCandidates = scoredResults.filter(r => {
             if (usedIds.has(r.id)) return false;
@@ -944,7 +943,7 @@ Reply with ONLY valid JSON, no explanation.`
 
         if (bundleItems.length >= 2) {
           const slotOrder = ["Superior", "Inferior", "Abrigo", "Calzado", "Accesorio"];
-          bundleItems.sort((a, b) => slotOrder.indexOf(a.slot) - slotOrder.indexOf(b.slot));
+          bundleItems.sort((a: any, b: any) => slotOrder.indexOf(a.slot) - slotOrder.indexOf(b.slot));
           outfitBundles.push({
             title: "Outfit recomendado por Drevo",
             items: bundleItems.map(({ _hasUserSize, ...rest }) => rest)
@@ -966,7 +965,7 @@ Reply with ONLY valid JSON, no explanation.`
           "pantalón": ["pantalón", "pantalon", "carpenter", "cargo", "jean"],
           campera: ["campera", "jacket"], zapatilla: ["zapatilla", "sneaker", "sneakers"],
         };
-        const expandedTypes = [...new Set(mustIncludeTypes.flatMap(t => typeSynonyms[t] || [t]))];
+        const expandedTypes = Array.from(new Set<string>(mustIncludeTypes.flatMap((t: string) => typeSynonyms[t] || [t])));
 
         const colorSynonyms: Record<string, string[]> = {
           negro: ["negro", "negra", "black"], blanca: ["blanca", "blanco", "white"],
@@ -989,7 +988,7 @@ Reply with ONLY valid JSON, no explanation.`
               for (const s of syns) { if (!foundColors.includes(s)) foundColors.push(s); }
             }
           }
-          const expandedT = [...new Set(types.flatMap(t => typeSynonyms[t] || [t]))];
+          const expandedT = Array.from(new Set<string>(types.flatMap((t: string) => typeSynonyms[t] || [t])));
           return { types: expandedT, colors: foundColors };
         });
 
@@ -1000,9 +999,9 @@ Reply with ONLY valid JSON, no explanation.`
           footwear: /sneaker|shoe|zapa|bota|boot|sandal|chancla|calzado/i,
           accessories: /media|medias|sock|gorra|cap|hat|vincha|muñequera|mochila|bolso/i,
         };
-        const mustItemCategories = mustItemParsed.map(item => {
+        const mustItemCategories = mustItemParsed.map((item: { types: string[]; colors: string[] }) => {
           for (const [cat, regex] of Object.entries(catSlotMap)) {
-            if (item.types.some(t => regex.test(t))) return cat;
+            if (item.types.some((t: string) => regex.test(t))) return cat;
           }
           return null;
         });
@@ -1017,11 +1016,11 @@ Reply with ONLY valid JSON, no explanation.`
           for (let i = 0; i < mustItemParsed.length; i++) {
             const item = mustItemParsed[i];
             const itemCat = mustItemCategories[i];
-            const titleMatchesType = item.types.some(t => rTitle.includes(t));
+            const titleMatchesType = item.types.some((t: string) => rTitle.includes(t));
             const sameCat = itemCat && rCatName === itemCat;
             if (!titleMatchesType && !sameCat) continue;
             if (item.colors.length === 0) return true;
-            const titleMatchesColor = item.colors.some(c => {
+            const titleMatchesColor = item.colors.some((c: string) => {
               const syns = colorSynonyms[c] || [c];
               return syns.some(s => rTitle.includes(s));
             });
@@ -1079,7 +1078,7 @@ Reply with ONLY valid JSON, no explanation.`
 
   app.get("/api/tryon/:productId", requireAuth, async (req, res) => {
     try {
-      const cached = await storage.getTryonResult(req.user!.id, req.params.productId);
+      const cached = await storage.getTryonResult((req.user as any).id, String(req.params.productId));
       if (cached) {
         return res.json(cached);
       }
@@ -1139,7 +1138,7 @@ Reply with ONLY valid JSON, no explanation.`
         user.bodyType ? `${user.bodyType} body type` : null,
       ].filter(Boolean).join(", ");
 
-      function readLocalImage(imgPath: string): { data: string; mimeType: string } | null {
+      const readLocalImage = (imgPath: string): { data: string; mimeType: string } | null => {
         const stripped = imgPath.startsWith("/") ? imgPath.slice(1) : imgPath;
         const localPath = path.join(process.cwd(), stripped);
         if (!fs.existsSync(localPath)) return null;
@@ -1249,9 +1248,8 @@ Image 2: the clothing item to apply`;
     res.status(200).json({ success: true, message: "Reindexing triggered via script" });
   });
 
-  // Tiendanube product sync
-  app.post("/api/integrations/:integrationId/sync-products", async (req, res) => {
-    const { integrationId } = req.params;
+  app.post("/api/integrations/:integrationId/sync-products", requireAuth, async (req, res) => {
+    const integrationId = String(req.params.integrationId);
 
     try {
       const [integration] = await db
@@ -1609,9 +1607,15 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
   app.post("/api/collections/:id/items", requireAuth, async (req, res) => {
     try {
+      const collectionId = String(req.params.id);
+      const userId = (req.user as any).id;
+      const collection = await storage.getCollection(collectionId);
+      if (!collection || collection.userId !== userId) {
+        return res.status(403).json({ message: "Acceso denegado" });
+      }
       const { productId } = req.body;
       if (!productId) return res.status(400).json({ message: "productId es obligatorio" });
-      const item = await storage.addCollectionItem(req.params.id, productId);
+      const item = await storage.addCollectionItem(collectionId, productId);
       res.json(item);
     } catch (error) {
       console.error("Add collection item error:", error);
@@ -1621,7 +1625,13 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
   app.delete("/api/collections/:id/items/:productId", requireAuth, async (req, res) => {
     try {
-      await storage.removeCollectionItem(req.params.id, req.params.productId);
+      const collectionId = String(req.params.id);
+      const userId = (req.user as any).id;
+      const collection = await storage.getCollection(collectionId);
+      if (!collection || collection.userId !== userId) {
+        return res.status(403).json({ message: "Acceso denegado" });
+      }
+      await storage.removeCollectionItem(collectionId, String(req.params.productId));
       res.json({ success: true });
     } catch (error) {
       console.error("Remove collection item error:", error);
@@ -1631,7 +1641,13 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
   app.get("/api/collections/:id/items", requireAuth, async (req, res) => {
     try {
-      const items = await storage.getCollectionItems(req.params.id);
+      const collectionId = String(req.params.id);
+      const userId = (req.user as any).id;
+      const collection = await storage.getCollection(collectionId);
+      if (!collection || collection.userId !== userId) {
+        return res.status(403).json({ message: "Acceso denegado" });
+      }
+      const items = await storage.getCollectionItems(collectionId);
       res.json(items);
     } catch (error) {
       console.error("Get collection items error:", error);
@@ -1641,7 +1657,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
   app.get("/api/user/saved-products", requireAuth, async (req, res) => {
     try {
-      const productIds = await storage.getUserSavedProductIds(req.user!.id);
+      const productIds = await storage.getUserSavedProductIds((req.user as any).id);
       res.json(productIds);
     } catch (error) {
       console.error("Get saved products error:", error);
