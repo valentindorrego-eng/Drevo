@@ -1114,7 +1114,8 @@ Reply with ONLY valid JSON, no explanation.`
       ].filter(Boolean).join(", ");
 
       function readLocalImage(imgPath: string): { data: string; mimeType: string } | null {
-        const localPath = path.join(process.cwd(), imgPath);
+        const stripped = imgPath.startsWith("/") ? imgPath.slice(1) : imgPath;
+        const localPath = path.join(process.cwd(), stripped);
         if (!fs.existsSync(localPath)) return null;
         const bytes = fs.readFileSync(localPath);
         const ext = path.extname(localPath).replace(".", "").toLowerCase() || "png";
