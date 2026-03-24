@@ -1156,6 +1156,7 @@ Reply with ONLY valid JSON, no explanation.`
         "lh3.googleusercontent.com",
         "platform-lookaside.fbsbx.com",
         "avatars.githubusercontent.com",
+        "images.unsplash.com",
       ];
 
       const isPrivateIp = (hostname: string): boolean => {
