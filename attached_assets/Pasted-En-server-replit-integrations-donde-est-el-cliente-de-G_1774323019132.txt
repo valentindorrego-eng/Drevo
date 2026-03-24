@@ -1,0 +1,44 @@
+En server/replit_integrations/ donde está el cliente de Gemini y el prompt del try-on,
+reemplazá el prompt actual con este:
+
+PROMPT ACTUAL: [lo que sea que tengan]
+
+NUEVO PROMPT PARA VIRTUAL TRY-ON:
+
+const TRYON_PROMPT = `You are a photo editing assistant specialized in virtual try-on.
+
+TASK: Place the clothing item from Image 2 onto the person in Image 1.
+
+STRICT RULES — follow ALL of these exactly:
+1. PRESERVE the person from Image 1 completely: their face, hair, skin tone, body shape, posture, and expression must remain identical
+2. PRESERVE the background from Image 1 exactly as it is
+3. PRESERVE the bottom clothing (pants, shorts, skirt) from Image 1
+4. REPLACE ONLY the top garment with the item shown in Image 2
+5. The replaced garment must look naturally worn — adjust for body shape, lighting, and shadows
+6. Do NOT generate a new person. Do NOT change the face. Do NOT change the background.
+7. Output a single photorealistic image that looks like a real photograph
+
+Image 1: the person who will wear the clothes
+Image 2: the clothing item to apply`;
+
+TAMBIÉN ajustar cómo se llama el modelo en el cliente de Gemini.
+Actualmente usa "nano banana" o similar de Replit AI Integrations.
+
+Verificar cuál es el modelo disponible en Replit AI Integrations para imagen.
+Si hay opción de usar gemini-2.0-flash-exp o imagen-3, probar con ese.
+El modelo de generación de imagen necesita soportar image editing / inpainting,
+no solo text-to-image.
+
+Si el modelo actual no soporta edición de imagen (solo generación),
+cambiar el approach:
+
+APPROACH ALTERNATIVO si el modelo no soporta inpainting:
+Usar gemini-2.5-flash con vision para analizar ambas imágenes y generar
+una descripción detallada del resultado, luego usar imagen-3 para generación.
+O usar el modelo con este prompt simplificado pero muy directivo:
+
+"Edit this photo: keep everything exactly the same (person, face, background, pants) 
+but replace only the shirt/top with the garment shown in the second image. 
+Make it look photorealistic."
+
+Después de cambiar el prompt, testear con una foto real y mostrarme el resultado.

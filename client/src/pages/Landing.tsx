@@ -1,25 +1,45 @@
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowRight, Sparkles, Search } from "lucide-react";
-import { useState } from "react";
+import { ArrowRight, Sparkles, Search, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
 import { Navigation } from "@/components/Navigation";
+
+function getSearchHistory(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem("drevo_search_history") || "[]");
+  } catch { return []; }
+}
+
+function addToSearchHistory(q: string) {
+  const history = getSearchHistory().filter(h => h !== q);
+  history.unshift(q);
+  localStorage.setItem("drevo_search_history", JSON.stringify(history.slice(0, 5)));
+}
 
 export default function Landing() {
   const [, setLocation] = useLocation();
   const [prompt, setPrompt] = useState("");
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSearchHistory(getSearchHistory());
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (prompt.trim()) {
-      setLocation(`/search?q=${encodeURIComponent(prompt)}`);
+      addToSearchHistory(prompt.trim());
+      setLocation(`/search?q=${encodeURIComponent(prompt.trim())}`);
     }
   };
 
   const examples = [
-    "Outfit minimalista negro para noche",
-    "Streetwear japonés oversize",
-    "Look oficina verano relajado",
-    "Vestido cocktail asimétrico"
+    "Outfit para after office porteño",
+    "Look para asado de finde",
+    "Vestido para casamiento como invitada",
+    "Ropa para primer día de trabajo",
+    "Look para boliche, algo atrevido",
+    "Outfit casual para la facu",
   ];
 
   return (
@@ -80,13 +100,32 @@ export default function Landing() {
               </div>
             </form>
 
-            {/* Prompt Chips */}
-            <div className="mt-6 flex flex-wrap justify-center gap-3">
+            {searchHistory.length > 0 && !prompt && (
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <span className="text-xs text-neutral-600 flex items-center gap-1 mr-1"><Clock className="w-3 h-3" /> Recientes:</span>
+                {searchHistory.map((h, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setLocation(`/search?q=${encodeURIComponent(h)}`)}
+                    className="px-3 py-1.5 text-xs bg-white/5 border border-white/10 rounded-full text-neutral-300 hover:text-white hover:border-white/30 transition-all"
+                    data-testid={`button-history-${i}`}
+                  >
+                    {h}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
               {examples.map((ex, i) => (
                 <button
                   key={i}
-                  onClick={() => setLocation(`/search?q=${encodeURIComponent(ex)}`)}
+                  onClick={() => {
+                    addToSearchHistory(ex);
+                    setLocation(`/search?q=${encodeURIComponent(ex)}`);
+                  }}
                   className="px-4 py-2 text-sm bg-white/5 border border-white/5 rounded-full text-neutral-400 hover:text-[#C8FF00] hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/5 transition-all duration-300"
+                  data-testid={`button-example-${i}`}
                 >
                   {ex}
                 </button>

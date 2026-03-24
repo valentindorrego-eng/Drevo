@@ -12,6 +12,8 @@ import Cart from "@/pages/Cart";
 import BrandConnect from "@/pages/BrandConnect";
 import Auth from "@/pages/Auth";
 import Profile from "@/pages/Profile";
+import StylePassport from "@/pages/StylePassport";
+import Collections from "@/pages/Collections";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -24,6 +26,8 @@ function Router() {
       <Route path="/connect" component={BrandConnect} />
       <Route path="/auth" component={Auth} />
       <Route path="/profile" component={Profile} />
+      <Route path="/style-passport" component={StylePassport} />
+      <Route path="/collections" component={Collections} />
       <Route component={NotFound} />
     </Switch>
   );

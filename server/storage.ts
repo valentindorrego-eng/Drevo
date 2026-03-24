@@ -1,7 +1,7 @@
-import { type User, type InsertUser, type TryonResult, users, products, productTags, productImages, productVariants, brands, categories, tryonResults } from "@shared/schema";
+import { type User, type InsertUser, type TryonResult, type ProductClick, type Collection, type CollectionItem, users, products, productTags, productImages, productVariants, brands, categories, tryonResults, productClicks, collections, collectionItems } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, inArray, desc } from "drizzle-orm";
+import { eq, and, inArray, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -18,6 +18,17 @@ export interface IStorage {
 
   getTryonResult(userId: string, productId: string): Promise<TryonResult | undefined>;
   createTryonResult(data: { userId: string; productId: string; userImageUrl: string; resultImageUrl: string }): Promise<TryonResult>;
+
+  createProductClick(data: { userId?: string; productId: string; brandId?: string; sessionId?: string; referralCode: string; queryText?: string }): Promise<ProductClick>;
+  convertClick(referralCode: string, orderAmount: number): Promise<ProductClick | undefined>;
+  getClickAnalytics(): Promise<any>;
+
+  getCollectionsByUser(userId: string): Promise<Collection[]>;
+  createCollection(data: { userId: string; name: string; emoji?: string; isDefault?: boolean }): Promise<Collection>;
+  addCollectionItem(collectionId: string, productId: string): Promise<CollectionItem>;
+  removeCollectionItem(collectionId: string, productId: string): Promise<void>;
+  getCollectionItems(collectionId: string): Promise<any[]>;
+  getUserSavedProductIds(userId: string): Promise<string[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -121,6 +132,95 @@ export class DatabaseStorage implements IStorage {
   async createTryonResult(data: { userId: string; productId: string; userImageUrl: string; resultImageUrl: string }): Promise<TryonResult> {
     const result = await db.insert(tryonResults).values(data).returning();
     return result[0];
+  }
+
+  async createProductClick(data: { userId?: string; productId: string; brandId?: string; sessionId?: string; referralCode: string; queryText?: string }): Promise<ProductClick> {
+    const result = await db.insert(productClicks).values(data).returning();
+    return result[0];
+  }
+
+  async convertClick(referralCode: string, orderAmount: number): Promise<ProductClick | undefined> {
+    const commissionAmount = (orderAmount * 0.20).toFixed(2);
+    const result = await db.update(productClicks)
+      .set({ status: "converted", convertedAt: new Date(), commissionAmount })
+      .where(eq(productClicks.referralCode, referralCode))
+      .returning();
+    return result[0] || undefined;
+  }
+
+  async getClickAnalytics(): Promise<any> {
+    const totalClicks = await db.select({ count: sql<number>`count(*)` }).from(productClicks);
+    const conversions = await db.select({ count: sql<number>`count(*)` }).from(productClicks).where(eq(productClicks.status, "converted"));
+    const revenue = await db.select({ total: sql<string>`COALESCE(SUM(commission_amount::numeric), 0)` }).from(productClicks).where(eq(productClicks.status, "converted"));
+
+    const byBrand = await db.select({
+      brandId: productClicks.brandId,
+      brandName: brands.name,
+      clicks: sql<number>`count(*)`,
+      conversions: sql<number>`count(*) FILTER (WHERE ${productClicks.status} = 'converted')`,
+      revenue: sql<string>`COALESCE(SUM(${productClicks.commissionAmount}::numeric) FILTER (WHERE ${productClicks.status} = 'converted'), 0)`,
+    }).from(productClicks)
+      .leftJoin(brands, eq(productClicks.brandId, brands.id))
+      .groupBy(productClicks.brandId, brands.name);
+
+    const byQuery = await db.select({
+      queryText: productClicks.queryText,
+      clicks: sql<number>`count(*)`,
+      conversions: sql<number>`count(*) FILTER (WHERE ${productClicks.status} = 'converted')`,
+    }).from(productClicks)
+      .where(sql`${productClicks.queryText} IS NOT NULL`)
+      .groupBy(productClicks.queryText)
+      .orderBy(sql`count(*) DESC`)
+      .limit(20);
+
+    return {
+      totalClicks: Number(totalClicks[0]?.count || 0),
+      totalConversions: Number(conversions[0]?.count || 0),
+      totalRevenue: Number(revenue[0]?.total || 0),
+      byBrand,
+      byQuery,
+    };
+  }
+
+  async getCollectionsByUser(userId: string): Promise<Collection[]> {
+    return db.select().from(collections).where(eq(collections.userId, userId)).orderBy(desc(collections.createdAt));
+  }
+
+  async createCollection(data: { userId: string; name: string; emoji?: string; isDefault?: boolean }): Promise<Collection> {
+    const result = await db.insert(collections).values(data).returning();
+    return result[0];
+  }
+
+  async addCollectionItem(collectionId: string, productId: string): Promise<CollectionItem> {
+    const existing = await db.select().from(collectionItems)
+      .where(and(eq(collectionItems.collectionId, collectionId), eq(collectionItems.productId, productId)));
+    if (existing.length > 0) return existing[0];
+    const result = await db.insert(collectionItems).values({ collectionId, productId }).returning();
+    return result[0];
+  }
+
+  async removeCollectionItem(collectionId: string, productId: string): Promise<void> {
+    await db.delete(collectionItems)
+      .where(and(eq(collectionItems.collectionId, collectionId), eq(collectionItems.productId, productId)));
+  }
+
+  async getCollectionItems(collectionId: string): Promise<any[]> {
+    const items = await db.select().from(collectionItems)
+      .where(eq(collectionItems.collectionId, collectionId))
+      .orderBy(desc(collectionItems.addedAt));
+    if (items.length === 0) return [];
+    const productIds = items.map(i => i.productId);
+    return this.getProductsByIds(productIds);
+  }
+
+  async getUserSavedProductIds(userId: string): Promise<string[]> {
+    const userCollections = await db.select({ id: collections.id }).from(collections).where(eq(collections.userId, userId));
+    if (userCollections.length === 0) return [];
+    const collectionIds = userCollections.map(c => c.id);
+    const items = await db.select({ productId: collectionItems.productId })
+      .from(collectionItems)
+      .where(inArray(collectionItems.collectionId, collectionIds));
+    return items.map(i => i.productId);
   }
 }
 

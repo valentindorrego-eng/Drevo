@@ -121,6 +121,13 @@ export const users = pgTable("users", {
   bodyType: text("body_type"),
   profileImageUrl: text("profile_image_url"),
   fullBodyImageUrl: text("full_body_image_url"),
+  stylePassportCompleted: boolean("style_passport_completed").default(false),
+  styleVibes: text("style_vibes").array(),
+  ocasionesFrecuentes: text("ocasiones_frecuentes").array(),
+  presupuestoRango: text("presupuesto_rango"),
+  marcasFavoritas: text("marcas_favoritas").array(),
+  coloresEvitar: text("colores_evitar").array(),
+  estilosEvitar: text("estilos_evitar").array(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -134,6 +141,41 @@ export const tryonResults = pgTable("tryon_results", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const productClicks = pgTable("product_clicks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id"),
+  productId: uuid("product_id").references(() => products.id).notNull(),
+  brandId: uuid("brand_id").references(() => brands.id),
+  sessionId: text("session_id"),
+  referralCode: text("referral_code").notNull().unique(),
+  utmSource: text("utm_source").default("drevo"),
+  utmMedium: text("utm_medium").default("ai_search"),
+  utmCampaign: text("utm_campaign").default("discovery"),
+  queryText: text("query_text"),
+  clickedAt: timestamp("clicked_at").defaultNow(),
+  convertedAt: timestamp("converted_at"),
+  commissionAmount: numeric("commission_amount"),
+  status: text("status").default("clicked"),
+});
+
+export const collections = pgTable("collections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(),
+  emoji: text("emoji"),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const collectionItems = pgTable("collection_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  collectionId: uuid("collection_id").references(() => collections.id).notNull(),
+  productId: uuid("product_id").references(() => products.id).notNull(),
+  addedAt: timestamp("added_at").defaultNow(),
+  notes: text("notes"),
+});
+
 // Zod schemas and types
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true, updatedAt: true });
@@ -145,6 +187,9 @@ export const insertSearchQuerySchema = createInsertSchema(searchQueries).omit({ 
 export const insertBrandIntegrationSchema = createInsertSchema(brandIntegrations).omit({ id: true, createdAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertTryonResultSchema = createInsertSchema(tryonResults).omit({ id: true, createdAt: true });
+export const insertProductClickSchema = createInsertSchema(productClicks).omit({ id: true, clickedAt: true });
+export const insertCollectionSchema = createInsertSchema(collections).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCollectionItemSchema = createInsertSchema(collectionItems).omit({ id: true, addedAt: true });
 
 export type Category = typeof categories.$inferSelect;
 export type Brand = typeof brands.$inferSelect;
@@ -157,5 +202,8 @@ export type BrandIntegration = typeof brandIntegrations.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type TryonResult = typeof tryonResults.$inferSelect;
+export type ProductClick = typeof productClicks.$inferSelect;
+export type Collection = typeof collections.$inferSelect;
+export type CollectionItem = typeof collectionItems.$inferSelect;
 
 export * from "./models/chat";

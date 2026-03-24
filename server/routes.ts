@@ -334,7 +334,7 @@ export async function registerRoutes(
     try {
       const input = api.search.searchProducts.input.parse(req.body);
       const query = input.query.toLowerCase();
-      const authenticatedUser = req.user as { id: string; preferredSize?: string | null } | undefined;
+      const authenticatedUser = req.user as Express.User | undefined;
       const userSize = authenticatedUser?.preferredSize || input.userSize || null;
       const sizeFilterEnabled = input.sizeFilterEnabled !== false && !!userSize;
       
@@ -360,7 +360,7 @@ export async function registerRoutes(
             messages: [
               { 
                 role: "system", 
-                content: `You are a fashion search intent extractor. Parse the user query into JSON.
+                content: `You are a fashion search intent extractor for DREVO, a fashion marketplace for Argentina/LATAM. Parse the user query into JSON.
 
 RULES:
 - If the query mentions 2+ different garment types (e.g. "remera y pantalón"), set intent_type to "outfit"
@@ -369,12 +369,24 @@ RULES:
 - colors.secondary = colors that are secondary/accent (e.g. the print color, not the base)
 - exclude = things the user explicitly doesn't want (e.g. "no deportiva" → ["deportiva"])
 - If the user's preferred size is provided (e.g. [User preferred size: M]), consider it as context for better matching but do NOT add it to the JSON output
+- If user style preferences are provided, use them to better understand the query context and improve style_tags and occasion detection
+
+Contexto de ocasiones en Argentina/LATAM que debés entender:
+- "asado familiar" / "asado" → casual, cómodo, colores neutros o vibrantes, sin ropa muy formal. Similar a "backyard party" en USA.
+- "after office" / "after" → transición trabajo a noche, semi-formal, versátil, no demasiado casual ni demasiado elegante.
+- "cumpleaños de 15" / "fiesta de 15" → elegante, festivo, puede ser vestido de noche o look muy producido. Alta importancia de la ocasión.
+- "boliche" / "antro" → nocturno, atrevido, brillos, tendencia, similar a "clubbing".
+- "facultad" / "universidad" → casual, cómodo, práctico, streetwear amigable.
+- "primer día de trabajo" → profesional pero no excesivamente formal, smart casual moderno.
+- "vacaciones en la costa" / "playa argentina" → veraniego, casual, colores claros, playero pero no solo traje de baño.
+- "casamiento" como invitado → elegante, festivo, NO blanco ni negro puro (por convención argentina), colores vibrantes o pasteles.
+Usá este contexto para enriquecer la detección de ocasión y estilo.
 
 JSON schema:
 {
   "query_language": "es" | "en",
   "intent_type": "outfit" | "single_item",
-  "occasion": "noche" | "oficina" | "gym" | "casual" | "cena" | "viaje" | "playa" | null,
+  "occasion": "noche" | "oficina" | "gym" | "casual" | "cena" | "viaje" | "playa" | "asado" | "after_office" | "boliche" | "casamiento" | "facultad" | null,
   "style_tags": string[],
   "colors": {"primary": string[], "secondary": string[]},
   "must_include": string[],
@@ -385,7 +397,21 @@ JSON schema:
 }
 Reply with ONLY valid JSON, no explanation.` 
               },
-              { role: "user", content: userSize ? `${input.query}\n\n[User preferred size: ${userSize}]` : input.query }
+              { role: "user", content: (() => {
+                let userMessage = input.query;
+                if (userSize) userMessage += `\n\n[User preferred size: ${userSize}]`;
+                const u = authenticatedUser as any;
+                if (u?.stylePassportCompleted) {
+                  const prefs: string[] = [];
+                  if (u.styleVibes?.length) prefs.push(`Estilo preferido: ${u.styleVibes.join(", ")}`);
+                  if (u.ocasionesFrecuentes?.length) prefs.push(`Compra para: ${u.ocasionesFrecuentes.join(", ")}`);
+                  if (u.presupuestoRango) prefs.push(`Presupuesto: ${u.presupuestoRango}`);
+                  if (u.coloresEvitar?.length) prefs.push(`Evita colores: ${u.coloresEvitar.join(", ")}`);
+                  if (u.estilosEvitar?.length) prefs.push(`Evita estilos: ${u.estilosEvitar.join(", ")}`);
+                  if (prefs.length > 0) userMessage += `\n\n[User style preferences: ${prefs.join(". ")}. Priorizá resultados acordes.]`;
+                }
+                return userMessage;
+              })() }
             ]
           });
           const aiIntent = JSON.parse(completion.choices[0].message?.content || "{}");
@@ -1159,23 +1185,22 @@ Reply with ONLY valid JSON, no explanation.`
       const { Modality } = await import("@google/genai");
       const { ai } = await import("./replit_integrations/image/client");
 
-      const tryonPrompt = `VIRTUAL TRY-ON TASK:
+      const tryonPrompt = `You are a photo editing assistant specialized in virtual try-on.
 
-I am giving you exactly 2 images:
-- IMAGE 1: A photo of a real person (the customer)
-- IMAGE 2: A clothing product called "${productTitle}"
+TASK: Place the clothing item from Image 2 onto the person in Image 1.
 
-YOUR JOB: Edit IMAGE 1 to replace the person's current top/clothing with the EXACT garment shown in IMAGE 2. This is a virtual try-on — you must digitally dress the person in the product.
+STRICT RULES — follow ALL of these exactly:
+1. PRESERVE the person from Image 1 completely: their face, hair, skin tone, body shape, posture, and expression must remain identical
+2. PRESERVE the background from Image 1 exactly as it is
+3. PRESERVE the bottom clothing (pants, shorts, skirt) from Image 1
+4. REPLACE ONLY the top garment with the item shown in Image 2 ("${productTitle}")
+5. The replaced garment must look naturally worn — adjust for body shape, lighting, and shadows
+6. Do NOT generate a new person. Do NOT change the face. Do NOT change the background.
+7. Output a single photorealistic image that looks like a real photograph
+${physicalDesc ? `8. Person's measurements: ${physicalDesc}` : ""}
 
-MANDATORY REQUIREMENTS:
-1. KEEP THE PERSON IDENTICAL: Same face, same hair, same skin tone, same pose, same body shape, same expression. Do NOT generate a different person.
-2. PUT THE EXACT PRODUCT ON THEM: The garment from IMAGE 2 must appear on the person's body — same color, same pattern, same logo, same design details. Do NOT invent a different garment.
-3. NATURAL FIT: The garment should look naturally worn — proper draping, wrinkles, and fit based on the person's body.
-4. KEEP THE SAME FRAMING: Use a similar camera angle and framing as IMAGE 1. If the person is shown from the waist up, keep that framing. If full-body, keep full-body.
-5. CLEAN BACKGROUND: Use a clean neutral studio background (white or light gray).
-${physicalDesc ? `6. Person's measurements: ${physicalDesc}` : ""}
-
-Think of it as a photo editing task: take the person from IMAGE 1 and swap their clothing with the product from IMAGE 2.`;
+Image 1: the person who will wear the clothes
+Image 2: the clothing item to apply`;
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-image",
@@ -1466,6 +1491,161 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
     } catch (err: any) {
       console.error("Sync error:", err);
       res.status(500).json({ message: "Error al sincronizar productos", error: err.message });
+    }
+  });
+
+  // ─── Click Tracking Routes ───
+
+  app.post("/api/clicks/track", async (req, res) => {
+    try {
+      const { productId, queryText, sessionId } = req.body;
+      if (!productId) return res.status(400).json({ message: "productId es obligatorio" });
+
+      const product = await storage.getProduct(productId);
+      if (!product) return res.status(404).json({ message: "Producto no encontrado" });
+
+      const timestamp = Date.now().toString(36);
+      const random = Math.random().toString(36).substring(2, 8);
+      const referralCode = `DRV-${timestamp}-${random}`;
+
+      const userId = req.user?.id || null;
+      const click = await storage.createProductClick({
+        userId: userId || undefined,
+        productId,
+        brandId: product.brandId || undefined,
+        sessionId: sessionId || undefined,
+        referralCode,
+        queryText: queryText || undefined,
+      });
+
+      const baseUrl = product.externalUrl || "";
+      const separator = baseUrl.includes("?") ? "&" : "?";
+      const referralUrl = baseUrl
+        ? `${baseUrl}${separator}utm_source=drevo&utm_medium=ai_search&utm_campaign=discovery&ref=${referralCode}`
+        : null;
+
+      res.json({ referralUrl, referralCode });
+    } catch (error) {
+      console.error("Click tracking error:", error);
+      res.status(500).json({ message: "Error al registrar click" });
+    }
+  });
+
+  app.post("/api/clicks/convert", async (req, res) => {
+    try {
+      const { referralCode, orderAmount } = req.body;
+      if (!referralCode || !orderAmount) return res.status(400).json({ message: "referralCode y orderAmount son obligatorios" });
+
+      const click = await storage.convertClick(referralCode, Number(orderAmount));
+      if (!click) return res.status(404).json({ message: "Click no encontrado" });
+
+      res.json(click);
+    } catch (error) {
+      console.error("Click conversion error:", error);
+      res.status(500).json({ message: "Error al convertir click" });
+    }
+  });
+
+  app.get("/api/analytics/clicks", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.role || user.role !== "admin") {
+        return res.status(403).json({ message: "Acceso denegado" });
+      }
+      const analytics = await storage.getClickAnalytics();
+      res.json(analytics);
+    } catch (error) {
+      console.error("Click analytics error:", error);
+      res.status(500).json({ message: "Error al obtener analytics" });
+    }
+  });
+
+  // ─── Style Passport Routes ───
+
+  app.post("/api/user/style-passport", requireAuth, async (req, res) => {
+    try {
+      const { styleVibes, ocasionesFrecuentes, presupuestoRango, marcasFavoritas, coloresEvitar, estilosEvitar } = req.body;
+      const user = await storage.updateUser(req.user!.id, {
+        styleVibes: styleVibes || [],
+        ocasionesFrecuentes: ocasionesFrecuentes || [],
+        presupuestoRango: presupuestoRango || null,
+        marcasFavoritas: marcasFavoritas || [],
+        coloresEvitar: coloresEvitar || [],
+        estilosEvitar: estilosEvitar || [],
+        stylePassportCompleted: true,
+      });
+      if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+      const { passwordHash: _, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (error) {
+      console.error("Style passport error:", error);
+      res.status(500).json({ message: "Error al guardar style passport" });
+    }
+  });
+
+  // ─── Collections Routes ───
+
+  app.get("/api/collections", requireAuth, async (req, res) => {
+    try {
+      const userCollections = await storage.getCollectionsByUser(req.user!.id);
+      res.json(userCollections);
+    } catch (error) {
+      console.error("Get collections error:", error);
+      res.status(500).json({ message: "Error al obtener colecciones" });
+    }
+  });
+
+  app.post("/api/collections", requireAuth, async (req, res) => {
+    try {
+      const { name, emoji } = req.body;
+      if (!name) return res.status(400).json({ message: "El nombre es obligatorio" });
+      const collection = await storage.createCollection({ userId: req.user!.id, name, emoji });
+      res.json(collection);
+    } catch (error) {
+      console.error("Create collection error:", error);
+      res.status(500).json({ message: "Error al crear colección" });
+    }
+  });
+
+  app.post("/api/collections/:id/items", requireAuth, async (req, res) => {
+    try {
+      const { productId } = req.body;
+      if (!productId) return res.status(400).json({ message: "productId es obligatorio" });
+      const item = await storage.addCollectionItem(req.params.id, productId);
+      res.json(item);
+    } catch (error) {
+      console.error("Add collection item error:", error);
+      res.status(500).json({ message: "Error al agregar producto" });
+    }
+  });
+
+  app.delete("/api/collections/:id/items/:productId", requireAuth, async (req, res) => {
+    try {
+      await storage.removeCollectionItem(req.params.id, req.params.productId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Remove collection item error:", error);
+      res.status(500).json({ message: "Error al quitar producto" });
+    }
+  });
+
+  app.get("/api/collections/:id/items", requireAuth, async (req, res) => {
+    try {
+      const items = await storage.getCollectionItems(req.params.id);
+      res.json(items);
+    } catch (error) {
+      console.error("Get collection items error:", error);
+      res.status(500).json({ message: "Error al obtener productos" });
+    }
+  });
+
+  app.get("/api/user/saved-products", requireAuth, async (req, res) => {
+    try {
+      const productIds = await storage.getUserSavedProductIds(req.user!.id);
+      res.json(productIds);
+    } catch (error) {
+      console.error("Get saved products error:", error);
+      res.status(500).json({ message: "Error al obtener guardados" });
     }
   });
 

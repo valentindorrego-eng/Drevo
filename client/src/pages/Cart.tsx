@@ -4,6 +4,7 @@ import { useCart } from "@/context/CartContext";
 import { ShoppingBag, ArrowRight, Trash2, Plus, Minus, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { trackClick } from "@/hooks/useClickTracker";
 
 export default function Cart() {
   const { items, removeItem, updateQuantity, clearCart, totalItems, totalPrice } = useCart();
@@ -124,9 +125,12 @@ export default function Cart() {
                     {item.externalUrl && (
                       <a
                         href={item.externalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-neutral-500 hover:text-white transition-colors mt-2 inline-flex items-center gap-1 self-start"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          const referralUrl = await trackClick(item.id);
+                          window.open(referralUrl || item.externalUrl!, "_blank", "noopener,noreferrer");
+                        }}
+                        className="text-xs text-neutral-500 hover:text-white transition-colors mt-2 inline-flex items-center gap-1 self-start cursor-pointer"
                         data-testid={`link-external-${item.id}`}
                       >
                         Comprar en tienda oficial <ExternalLink className="w-3 h-3" />

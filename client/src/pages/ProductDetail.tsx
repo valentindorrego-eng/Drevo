@@ -1,26 +1,100 @@
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { Navigation } from "@/components/Navigation";
 import { useProduct } from "@/hooks/use-search";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
-import { ArrowLeft, Share2, Heart, Info, ShoppingBag, Check, ExternalLink, Sparkles } from "lucide-react";
+import { ArrowLeft, Share2, Heart, Info, ShoppingBag, Check, ExternalLink, Sparkles, Search as SearchIcon, Bookmark } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { TryOnModal } from "@/components/TryOnModal";
+import { trackClick } from "@/hooks/useClickTracker";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:id");
   const id = params?.id || "";
   const { data: product, isLoading, error } = useProduct(id);
+  const [, setLocation] = useLocation();
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [justAdded, setJustAdded] = useState(false);
   const [tryOnOpen, setTryOnOpen] = useState(false);
   const { addItem } = useCart();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+
+  const { data: savedProducts = [] } = useQuery<string[]>({
+    queryKey: ["/api/user/saved-products"],
+    enabled: isAuthenticated,
+  });
+
+  const { data: userCollections = [] } = useQuery<any[]>({
+    queryKey: ["/api/collections"],
+    enabled: isAuthenticated,
+  });
+
+  const isSaved = savedProducts.includes(id);
+
+  const saveToCollection = useMutation({
+    mutationFn: async () => {
+      let collectionId: string;
+      if (userCollections.length === 0) {
+        const res = await apiRequest("POST", "/api/collections", { name: "Guardados", emoji: "❤️" });
+        const c = await res.json();
+        collectionId = c.id;
+      } else {
+        collectionId = userCollections[0].id;
+      }
+      await apiRequest("POST", `/api/collections/${collectionId}/items`, { productId: id });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/saved-products"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/collections"] });
+      toast({ title: "Guardado", description: "Producto agregado a tu colección." });
+    },
+  });
+
+  const removeFromCollection = useMutation({
+    mutationFn: async () => {
+      if (userCollections.length > 0) {
+        await apiRequest("DELETE", `/api/collections/${userCollections[0].id}/items/${id}`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/saved-products"] });
+      toast({ title: "Eliminado de guardados" });
+    },
+  });
+
+  const handleBookmark = () => {
+    if (!isAuthenticated) {
+      toast({ title: "Iniciá sesión", description: "Guardá tus productos favoritos con una cuenta.", variant: "destructive" });
+      return;
+    }
+    if (isSaved) {
+      removeFromCollection.mutate();
+    } else {
+      saveToCollection.mutate();
+    }
+  };
+
+  const handleExternalClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!product?.externalUrl) return;
+    const referralUrl = await trackClick(id);
+    window.open(referralUrl || product.externalUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleSearchSimilar = () => {
+    if (product) {
+      const brandName = product.brand?.name || "";
+      const q = `Similar a ${product.title}${brandName ? ` de ${brandName}` : ""} pero más `;
+      setLocation(`/search?q=${encodeURIComponent(q)}`);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -137,8 +211,15 @@ export default function ProductDetail() {
                     <button className="text-neutral-400 hover:text-white transition-colors" data-testid="button-share">
                       <Share2 className="w-5 h-5" />
                     </button>
-                    <button className="text-neutral-400 hover:text-red-500 transition-colors" data-testid="button-favorite">
-                      <Heart className="w-5 h-5" />
+                    <button
+                      onClick={handleBookmark}
+                      className={cn(
+                        "transition-colors",
+                        isSaved ? "text-[#C8FF00]" : "text-neutral-400 hover:text-[#C8FF00]"
+                      )}
+                      data-testid="button-favorite"
+                    >
+                      {isSaved ? <Bookmark className="w-5 h-5 fill-current" /> : <Bookmark className="w-5 h-5" />}
                     </button>
                   </div>
                 </div>
@@ -232,14 +313,21 @@ export default function ProductDetail() {
                 {product.externalUrl && (
                   <a
                     href={product.externalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    onClick={handleExternalClick}
                     data-testid="link-buy-external"
-                    className="w-full h-12 border border-white/20 rounded font-medium text-sm text-neutral-300 hover:text-white hover:border-white transition-all flex items-center justify-center gap-2"
+                    className="w-full h-12 border border-white/20 rounded font-medium text-sm text-neutral-300 hover:text-white hover:border-white transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     Ver en tienda oficial <ExternalLink className="w-4 h-4" />
                   </a>
                 )}
+
+                <button
+                  onClick={handleSearchSimilar}
+                  data-testid="button-search-similar"
+                  className="w-full h-12 border border-white/10 rounded font-medium text-sm text-neutral-500 hover:text-white hover:border-white/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <SearchIcon className="w-4 h-4" /> Buscar algo similar
+                </button>
 
                 <p className="text-center text-xs text-neutral-500">
                   Envío gratis en compras superiores a $100.000

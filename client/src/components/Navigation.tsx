@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Menu, X, Plug, UserCircle } from "lucide-react";
+import { ShoppingBag, Menu, X, Plug, UserCircle, Bookmark, Fingerprint } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
@@ -23,6 +23,8 @@ export function Navigation() {
   const links = [
     { href: "/", label: "Explorar" },
     { href: "/search", label: "Buscar" },
+    ...(isAuthenticated ? [{ href: "/collections", label: "Guardados" }] : []),
+    ...(isAuthenticated ? [{ href: "/style-passport", label: "Style Passport" }] : []),
     { href: "/connect", label: "Conectar tienda" },
     { href: "/cart", label: `Carrito${totalItems > 0 ? ` (${totalItems})` : ""}` },
     { href: isAuthenticated ? "/profile" : "/auth", label: isAuthenticated ? (user?.displayName || "Mi cuenta") : "Entrar" },
@@ -54,6 +56,27 @@ export function Navigation() {
             <Plug className="w-3.5 h-3.5" />
             <span>Conectar tienda</span>
           </Link>
+          {isAuthenticated && (
+            <Link href="/collections" data-testid="link-nav-collections" className={cn(
+              "text-sm font-medium transition-colors hover:text-white flex items-center gap-1.5",
+              location === "/collections" ? "text-white" : "text-neutral-400"
+            )}>
+              <Bookmark className="w-3.5 h-3.5" />
+              <span>Guardados</span>
+            </Link>
+          )}
+          {isAuthenticated && (
+            <Link href="/style-passport" data-testid="link-nav-style-passport" className={cn(
+              "text-sm font-medium transition-colors hover:text-white flex items-center gap-1.5 relative",
+              location === "/style-passport" ? "text-white" : "text-neutral-400"
+            )}>
+              <Fingerprint className="w-3.5 h-3.5" />
+              <span>Style Passport</span>
+              {user && !user.stylePassportCompleted && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 bg-[#C8FF00] rounded-full animate-pulse" />
+              )}
+            </Link>
+          )}
           <Link href="/cart" data-testid="link-nav-cart" className={cn(
             "text-sm font-medium transition-colors hover:text-white flex items-center gap-2 relative",
             location === "/cart" ? "text-white" : "text-neutral-400"

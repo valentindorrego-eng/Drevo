@@ -1,0 +1,335 @@
+Sos el desarrollador principal de DREVO, una app de descubrimiento de moda con IA para LATAM. 
+Tenés acceso completo al código. Voy a describir una serie de mejoras inspiradas en Daydream 
+(el competidor más sofisticado del mercado, $50M raised) adaptadas a nuestra realidad técnica 
+y mercado LATAM. Ejecutá cada tarea en orden, confirmá cuando cada una esté completa antes de 
+pasar a la siguiente.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTEXTO DEL PROYECTO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Stack: React 18 + TypeScript + Vite + Express 5 + PostgreSQL + pgvector + Drizzle ORM
+IA: OpenAI GPT-4o-mini (intent) + text-embedding-3-small (embeddings) + Gemini (try-on)
+UI: shadcn/ui + Tailwind + Framer Motion + dark mode + español argentino
+Ya construido: auth, perfil de usuario, búsqueda semántica con talle, probador virtual con Gemini
+Tablas existentes: users, products, product_variants, product_embeddings, brands, 
+brand_integrations, search_queries, tryon_results, conversations, messages
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAREA 1 — MODELO DE COMISIÓN (Cómo cobra Daydream, cómo lo implementamos)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Daydream cobra ~20% de comisión por venta usando affiliate tracking: cuando el usuario 
+hace click en "Comprar", se lo redirige al sitio de la marca con un tracking link que 
+tiene un parámetro UTM + affiliate ID. Cuando la marca confirma la venta (via webhook 
+o pixel), Daydream registra la comisión.
+
+Implementar el sistema de tracking de clicks y comisiones:
+
+1. Crear tabla `product_clicks` en shared/schema.ts:
+   - id, userId (nullable), productId, brandId, sessionId
+   - referralCode (string único por click, formato: DRV-{timestamp}-{random6})
+   - utmSource: "drevo", utmMedium: "ai_search", utmCampaign: "discovery"
+   - queryText (la búsqueda que generó ese click)
+   - clickedAt, convertedAt (nullable), commissionAmount (nullable)
+   - status: "clicked" | "converted" | "pending"
+
+2. Crear endpoint POST /api/clicks/track:
+   - Recibe: productId, queryText, sessionId
+   - Genera referralCode único
+   - Guarda el click en DB
+   - Devuelve: { referralUrl, referralCode }
+   - La referralUrl debe ser: {product.url}?utm_source=drevo&utm_medium=ai_search&ref={referralCode}
+
+3. Crear endpoint POST /api/clicks/convert (para cuando una marca confirme una venta):
+   - Recibe: referralCode, orderAmount
+   - Actualiza el click a status "converted"
+   - Calcula commissionAmount = orderAmount * 0.20
+   - Guarda convertedAt
+
+4. Crear endpoint GET /api/analytics/clicks (protegido, solo admin):
+   - Devuelve: total clicks, conversiones, revenue estimado de comisiones
+   - Agrupado por marca y por query de búsqueda
+
+5. En el frontend, modificar todos los botones "Comprar" / "Ver producto" en:
+   - ProductDetail.tsx
+   - Search.tsx (product cards)
+   - Cualquier otro lugar donde haya un link a producto externo
+   
+   Antes de redirigir, hacer POST /api/clicks/track y usar la referralUrl que devuelve.
+   El redirect debe abrir en nueva pestaña (_blank).
+
+Ejecutar migración con npm run db:push al terminar.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAREA 2 — STYLE PASSPORT (Inspirado en Daydream, adaptado a LATAM)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Daydream hace 3 preguntas al entrar: rango de precio, marcas preferidas, y captura 
+nombre/edad. Nosotros lo hacemos mejor con contexto LATAM.
+
+1. Agregar campos al schema de users en shared/schema.ts:
+   - stylePassportCompleted: boolean (default false)
+   - styleVibes: text[] (ej: ["minimalista", "urbano", "elegante", "casual"])
+   - ocasionesFrecuentes: text[] (ej: ["trabajo", "salidas nocturnas", "casual finde", "eventos"])
+   - presupuestoRango: text (ej: "bajo" | "medio" | "alto" | "premium")
+   - marcasFavoritas: text[] 
+   - coloresEvitar: text[] 
+   - estilosEvitar: text[]
+
+2. Crear página /style-passport (StylePassport.tsx):
+   
+   Paso 1 — "¿Cómo te describirías?" (multi-select visual con íconos)
+   Opciones: Minimalista / Urbano / Elegante / Casual / Streetwear / Clásico / Atrevido / Bohemio
+   
+   Paso 2 — "¿Para qué ocasiones comprás más?" (multi-select)
+   Opciones: Trabajo/oficina / Salidas de noche / Casual finde / Eventos y fiestas / 
+   Viajes / Deportivo / Cumpleaños 15 / Asado familiar
+   
+   Paso 3 — "¿Cuánto solés gastar por prenda?"
+   Opciones visuales: Hasta $30 USD / $30-80 USD / $80-200 USD / +$200 USD
+   
+   Diseño: dark mode, una pregunta por pantalla, animación de transición con Framer Motion,
+   barra de progreso en la parte superior, botón "Siguiente" grande.
+   Al completar: POST /api/user/style-passport → guarda en DB → redirige a /
+   
+3. Mostrar el Style Passport modal automáticamente:
+   - Después del primer login/registro si stylePassportCompleted es false
+   - En Navigation mostrar badge "Completar tu perfil" si no está completo
+   
+4. Usar el Style Passport en la búsqueda:
+   En server/routes.ts, en el endpoint POST /api/search:
+   - Si el usuario está logueado y tiene stylePassportCompleted = true
+   - Inyectar en el prompt de OpenAI: sus styleVibes, ocasionesFrecuentes y presupuestoRango
+   - Ejemplo: "El usuario prefiere estilo minimalista y urbano, compra para trabajo y 
+     salidas de noche, presupuesto medio ($30-80 USD). Priorizá resultados acordes."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAREA 3 — FEATURE "AJUSTAR" (Copia exacta del "Say More" de Daydream)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Daydream tiene un botón "Say More" en cada product card que abre el chat con el 
+contexto del producto pre-cargado para refinar la búsqueda sin reiniciarla.
+
+1. En cada ProductCard en Search.tsx agregar botón "Ajustar":
+   - Ícono de sliders o lápiz pequeño
+   - Posicionado en la esquina inferior derecha de la card
+   - Al hacer click: focaliza el campo de búsqueda Y pre-llena con:
+     "Busco algo similar a [nombre del producto] pero [cursor aquí para que el usuario complete]"
+   
+2. Agregar también en ProductDetail.tsx:
+   - Botón secundario "Buscar algo similar" debajo del botón principal de compra
+   - Al hacer click: navega a /search con query pre-cargada:
+     "Similar a [nombre producto] de [marca] pero más [campo libre]"
+
+3. En el campo de búsqueda principal (Landing.tsx y Search.tsx):
+   - Guardar el historial de búsquedas de la sesión (últimas 5 queries en localStorage)
+   - Mostrar como chips clickeables debajo del input cuando está vacío
+   - Label: "Búsquedas recientes"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAREA 4 — COLECCIONES / GUARDADOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Daydream permite guardar productos en colecciones tipo Pinterest boards.
+
+1. Crear tabla `collections` en shared/schema.ts:
+   - id, userId, name, emoji (opcional), isDefault (boolean)
+   - createdAt, updatedAt
+   - Crear colección default "Guardados" para cada usuario nuevo
+
+2. Crear tabla `collection_items`:
+   - id, collectionId, productId, addedAt, notes (nullable)
+
+3. Endpoints:
+   - GET /api/collections — lista colecciones del usuario logueado
+   - POST /api/collections — crear nueva colección { name, emoji }
+   - POST /api/collections/:id/items — agregar producto { productId }
+   - DELETE /api/collections/:id/items/:productId — quitar producto
+   - GET /api/collections/:id/items — productos de una colección
+
+4. En ProductCard y ProductDetail:
+   - Botón de corazón/bookmark en cada producto
+   - Si no está logueado: redirige a /auth con mensaje "Guardá tus productos favoritos"
+   - Si está logueado: abre mini-dropdown con sus colecciones para elegir dónde guardar
+   - Si solo tiene la colección default: guarda directo sin dropdown
+   - Indicador visual si el producto ya está guardado (corazón lleno / bookmark activo)
+
+5. Crear página /collections:
+   - Muestra todas las colecciones del usuario
+   - Al hacer click en una colección: muestra la grilla de productos guardados
+   - Cada producto con botón para quitar y botón para ir a comprarlo (con tracking)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAREA 5 — UI CONVERSACIONAL EN RESULTADOS (El layout de Daydream)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Daydream tiene un layout de dos columnas en desktop: chat a la izquierda para refinar, 
+resultados a la derecha. En mobile es un chat que colapsa sobre los resultados.
+
+Rediseñar Search.tsx con este layout:
+
+DESKTOP (>= 1024px):
+- Columna izquierda (320px fija): 
+  * Header con el query actual
+  * Intent display: chips de lo que detectó la IA (ocasión, colores, estilo)
+  * Campo de texto para refinar: "Refinar búsqueda..." con botón enviar
+  * Historial de refinamientos de esta sesión (lista de chips clickeables)
+  * Sección "Filtros detectados": mostrar talle activo, presupuesto si fue mencionado
+  * Botón "Nueva búsqueda" que limpia todo
+
+- Columna derecha (flex):
+  * Si hay outfit bundle: Card de outfit completo arriba (top + bottom + footwear)
+  * Grilla de productos 2-3 columnas con ProductCards
+
+MOBILE:
+- Search bar sticky en el top
+- Chips de intent debajo del search bar (scrollable horizontal)
+- Grilla de productos full width
+- FAB (floating action button) con ícono de chat para abrir panel de refinamiento
+- Panel de refinamiento: slide-up sheet (usar shadcn Sheet component)
+
+Para el refinamiento:
+- Cuando el usuario escribe en el campo de refinamiento y envía, hacer nueva búsqueda 
+  combinando el query original + el refinamiento
+- Ejemplo: query original "outfit negro para noche" + refinamiento "más formal" 
+  → nueva query al backend: "outfit negro para noche, más formal"
+- Mostrar en el historial de la columna izquierda todos los refinamientos de la sesión
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAREA 6 — KNOWLEDGE GRAPH DE OCASIONES LATAM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Daydream entrenó un "fashion knowledge graph" con contexto social de eventos.
+Nosotros lo hacemos con prompt engineering sobre GPT-4o-mini, adaptado a LATAM.
+
+En server/routes.ts, en la extracción de intención (el prompt a OpenAI), 
+reemplazar o ampliar el prompt actual con este contexto de ocasiones LATAM:
+
+Agregar al system prompt de extracción de intención:
+
+"""
+Contexto de ocasiones en Argentina/LATAM que debés entender:
+- "asado familiar" / "asado" → casual, cómodo, colores neutros o vibrantes, sin 
+  ropa muy formal. Similar a "backyard party" en USA.
+- "after office" / "after" → transición trabajo a noche, semi-formal, 
+  versátil, no demasiado casual ni demasiado elegante.
+- "cumpleaños de 15" / "fiesta de 15" → elegante, festivo, puede ser 
+  vestido de noche o look muy producido. Alta importancia de la ocasión.
+- "boliche" / "antro" → nocturno, atrevido, brillos, tendencia, 
+  similar a "clubbing".
+- "facultad" / "universidad" → casual, cómodo, práctico, streetwear amigable.
+- "primer día de trabajo" → profesional pero no excesivamente formal, 
+  smart casual moderno.
+- "vacaciones en la costa" / "playa argentina" → veraniego, casual, 
+  colores claros, playero pero no solo traje de baño.
+- "casamiento" como invitado → elegante, festivo, NO blanco ni negro puro 
+  (por convención argentina), colores vibrantes o pasteles.
+Usá este contexto para enriquecer la detección de ocasión y estilo.
+"""
+
+También agregar chips de ocasiones sugeridas en la Landing.tsx:
+Reemplazar o agregar a los ejemplos actuales:
+- "outfit para after office porteño"
+- "look para asado de finde"  
+- "vestido para casamiento como invitada"
+- "ropa para primer día de trabajo"
+- "look para boliche, algo atrevido"
+- "outfit casual para la facu"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAREA 7 — PÁGINA DE INTEGRACIÓN TIENDANUBE (BrandConnect)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Crear client/src/pages/BrandConnect.tsx:
+
+   Sección Hero:
+   - Título: "Conectá tu tienda a DREVO"
+   - Subtítulo: "Tus productos frente a compradores que saben exactamente lo que quieren"
+   - Tres value props con íconos:
+     * "Búsqueda por intención — tus productos aparecen cuando alguien describe lo que buscás"
+     * "Sin inventario muerto — el cliente correcto encuentra tu producto correcto"  
+     * "Comisión solo por venta — onboarding gratuito, pagás cuando vendés"
+   - Botón CTA: "Conectar mi tienda de Tiendanube" → llama a GET /auth/tiendanube/start
+
+   Sección Estado de conexión:
+   - GET /api/integrations al cargar la página
+   - Si hay integración activa: mostrar card verde con nombre de la tienda, 
+     cantidad de productos sincronizados, última sync
+   - Si no hay integración: mostrar el CTA de conectar
+   
+   Sección Sync:
+   - Si está conectado: botón "Sincronizar productos ahora" 
+     → POST /api/integrations/:id/sync-products
+   - Mostrar progreso y resultado de la sync
+
+2. Agregar ruta /connect en el router (client/src/main.tsx o donde esté el router)
+
+3. Agregar link "Para marcas" en Navigation.tsx apuntando a /connect
+
+4. Implementar GET /api/integrations en server/routes.ts:
+   - Devuelve las integraciones del usuario logueado (o de admin si no hay auth de marca)
+   - Query: SELECT * FROM brand_integrations WHERE status = 'active'
+
+5. Implementar POST /api/integrations/:integrationId/sync-products:
+   - Obtener access_token y store_id de la integración
+   - Llamar a https://api.tiendanube.com/v1/{store_id}/products
+     Headers: Authentication: bearer {access_token}, User-Agent: DREVO (hola@drevo.app)
+   - Por cada producto: upsert en tabla products (por external_id)
+   - Generar embedding con text-embedding-3-small para cada producto nuevo
+   - Guardar embedding en product_embeddings
+   - Devolver { synced: N, updated: M, errors: [] }
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAREA 8 — REGENERAR EMBEDDINGS FALTANTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Hay 10 productos sin embeddings. Ejecutar:
+
+   npx tsx scripts/reindex.ts
+
+Verificar con query SQL:
+   SELECT COUNT(*) FROM product_embeddings;
+   
+El resultado debe ser 15 (o el total de productos activos).
+Si el script falla, mostrá el error completo y arreglalo antes de continuar.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ORDEN DE EJECUCIÓN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ejecutá en este orden exacto:
+
+1. Tarea 8 (embeddings) — 2 minutos, mejora la búsqueda ahora mismo
+2. Tarea 1 (tracking de clicks) — infraestructura de monetización
+3. Tarea 2 (Style Passport) — personalización
+4. Tarea 3 (Ajustar) — UX refinement
+5. Tarea 4 (Colecciones) — retención
+6. Tarea 6 (Knowledge graph LATAM) — calidad de búsqueda
+7. Tarea 5 (UI conversacional) — rediseño de Search
+8. Tarea 7 (BrandConnect + Tiendanube sync) — el loop completo
+
+Antes de cada tarea: mostrá qué vas a hacer en 2 líneas.
+Después de cada tarea: confirmá qué quedó completado y si hay algo para testear.
+Si encontrás un bug o algo roto, arreglalo antes de avanzar.
+No agregues features no pedidos. Si tenés una sugerencia de mejora, mencionala 
+al final de la tarea como nota pero no la implementes sin confirmación.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NOTA SOBRE EL MODELO DE COMISIÓN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Daydream cobra comisión usando affiliate/referral tracking links. El flujo es:
+1. Usuario hace click en "Comprar" en DREVO
+2. DREVO genera un link con parámetro ?ref=DRV-XXXXX&utm_source=drevo
+3. Usuario llega al sitio de la marca con ese parámetro en la URL
+4. La marca (Tiendanube, Shopify, etc.) puede configurar un webhook que 
+   notifique a DREVO cuando se completa una compra con ese ref
+5. DREVO registra la comisión
+
+En el MVP, el tracking es best-effort: registramos el click siempre, 
+la conversión será manual o via webhook cuando las marcas lo configuren.
+Lo importante ahora es que TODOS los clicks queden registrados con su 
+referralCode para poder reclamar comisiones a futuro.
+
+Empezá por la Tarea 8. Avisame cuando esté lista.

@@ -12,6 +12,13 @@ export interface AuthUser {
   bodyType: string | null;
   profileImageUrl: string | null;
   fullBodyImageUrl: string | null;
+  stylePassportCompleted: boolean | null;
+  styleVibes: string[] | null;
+  ocasionesFrecuentes: string[] | null;
+  presupuestoRango: string | null;
+  marcasFavoritas: string[] | null;
+  coloresEvitar: string[] | null;
+  estilosEvitar: string[] | null;
   createdAt: string | null;
 }
 
