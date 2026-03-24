@@ -1101,14 +1101,15 @@ Reply with ONLY valid JSON, no explanation.`
         return res.status(404).json({ message: "Producto no encontrado" });
       }
 
-      if (forceRegenerate !== "true") {
-        const cached = await storage.getTryonResult(req.user!.id, productId);
+      const hasNewUpload = !!req.file;
+      if (forceRegenerate !== "true" && !hasNewUpload) {
+        const cached = await storage.getTryonResult((req.user as any).id, productId);
         if (cached) {
           return res.json(cached);
         }
       }
 
-      if (!checkTryonRateLimit(req.user!.id)) {
+      if (!checkTryonRateLimit((req.user as any).id)) {
         return res.status(429).json({ message: "Alcanzaste el límite de pruebas virtuales. Intentá de nuevo en una hora." });
       }
 
