@@ -1,7 +1,7 @@
-import { type User, type InsertUser, users, products, productTags, productImages, productVariants, brands, categories } from "@shared/schema";
+import { type User, type InsertUser, type TryonResult, users, products, productTags, productImages, productVariants, brands, categories, tryonResults } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -15,6 +15,9 @@ export interface IStorage {
   getProductsByIds(ids: string[]): Promise<any[]>;
 
   createSearchQuery(queryText: string, intent: any): Promise<any>;
+
+  getTryonResult(userId: string, productId: string): Promise<TryonResult | undefined>;
+  createTryonResult(data: { userId: string; productId: string; userImageUrl: string; resultImageUrl: string }): Promise<TryonResult>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -103,10 +106,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSearchQuery(queryText: string, intent: any) {
-    // Insert into searchQueries table (assuming it exists in schema)
-    // For now, just logging to satisfy requirement
     console.log("Saving search query:", queryText, intent);
     return { id: randomUUID(), queryText, parsedIntent: intent };
+  }
+
+  async getTryonResult(userId: string, productId: string): Promise<TryonResult | undefined> {
+    const result = await db.select().from(tryonResults)
+      .where(and(eq(tryonResults.userId, userId), eq(tryonResults.productId, productId)));
+    return result[0] || undefined;
+  }
+
+  async createTryonResult(data: { userId: string; productId: string; userImageUrl: string; resultImageUrl: string }): Promise<TryonResult> {
+    const result = await db.insert(tryonResults).values(data).returning();
+    return result[0];
   }
 }
 

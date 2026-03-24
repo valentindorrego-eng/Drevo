@@ -58,6 +58,7 @@ Preferred communication style: Simple, everyday language.
   - `search_queries` — Log of user search queries with extracted intent
   - `brand_integrations` — OAuth tokens for connected stores (Tiendanube)
   - `users` — User accounts with email/password or Google OAuth, physical attributes (height, weight, body type, preferred size), profile image
+  - `tryon_results` — Cached virtual try-on results (userId, productId, userImageUrl, resultImageUrl)
 - **Vector Search**: pgvector extension with a `match_products` SQL RPC function for cosine similarity search
 - **Seeding**: Application auto-seeds dummy brands, products, categories, variants, tags, and images on startup
 

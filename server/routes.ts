@@ -122,6 +122,10 @@ export async function registerRoutes(
     }
   });
 
+  const tryonDir = path.join(process.cwd(), "uploads", "tryon");
+  if (!fs.existsSync(tryonDir)) {
+    fs.mkdirSync(tryonDir, { recursive: true });
+  }
   const uploadsDir = path.join(process.cwd(), "uploads", "avatars");
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
@@ -984,6 +988,163 @@ Reply with ONLY valid JSON, no explanation.`
     const product = await storage.getProduct(req.params.id);
     if (!product) return res.status(404).json({ message: 'Product not found' });
     res.json(product);
+  });
+
+  const tryonUpload = multer({
+    storage: multer.diskStorage({
+      destination: path.join(process.cwd(), "uploads", "tryon"),
+      filename: (_req, file, cb) => {
+        const ext = mimeToExt[file.mimetype] || ".jpg";
+        cb(null, `user-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+      },
+    }),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      cb(null, file.mimetype in mimeToExt);
+    },
+  });
+
+  app.get("/api/tryon/:productId", requireAuth, async (req, res) => {
+    try {
+      const cached = await storage.getTryonResult(req.user!.id, req.params.productId);
+      if (cached) {
+        return res.json(cached);
+      }
+      return res.json(null);
+    } catch (error) {
+      console.error("Try-on cache check error:", error);
+      res.status(500).json({ message: "Error al verificar caché" });
+    }
+  });
+
+  app.post("/api/tryon", requireAuth, tryonUpload.single("userPhoto"), async (req, res) => {
+    try {
+      const { productId, forceRegenerate } = req.body;
+      if (!productId) {
+        return res.status(400).json({ message: "productId es obligatorio" });
+      }
+
+      const product = await storage.getProduct(productId);
+      if (!product) {
+        return res.status(404).json({ message: "Producto no encontrado" });
+      }
+
+      if (forceRegenerate !== "true") {
+        const cached = await storage.getTryonResult(req.user!.id, productId);
+        if (cached) {
+          return res.json(cached);
+        }
+      }
+
+      if (!openai) {
+        return res.status(503).json({ message: "Servicio de IA no disponible" });
+      }
+
+      let userImageUrl = req.user!.profileImageUrl || null;
+      if (req.file) {
+        userImageUrl = `/uploads/tryon/${req.file.filename}`;
+      }
+      if (!userImageUrl) {
+        return res.status(400).json({ message: "Se necesita una foto. Subí una o configurá tu foto de perfil." });
+      }
+
+      const productImage = product.images?.[0]?.url || null;
+      const productTitle = product.title;
+      const productDescription = product.description || "";
+      const productTagsList = product.tags?.map((t: { tag?: string } | string) => typeof t === 'string' ? t : (t.tag || '')).join(", ") || "";
+
+      const user = req.user!;
+      const physicalDesc = [
+        user.heightCm ? `${user.heightCm}cm de altura` : null,
+        user.weightKg ? `${user.weightKg}kg` : null,
+        user.bodyType ? `contextura ${user.bodyType}` : null,
+      ].filter(Boolean).join(", ");
+
+      const userImageFullUrl = userImageUrl.startsWith("/")
+        ? `${req.protocol}://${req.get("host")}${userImageUrl}`
+        : userImageUrl;
+
+      const visionImages: { type: "image_url"; image_url: { url: string } }[] = [];
+      if (userImageFullUrl) {
+        visionImages.push({ type: "image_url", image_url: { url: userImageFullUrl } });
+      }
+      if (productImage) {
+        visionImages.push({ type: "image_url", image_url: { url: productImage } });
+      }
+
+      let personDescription = physicalDesc || "a person";
+      let garmentDescription = `${productTitle}. ${productDescription}`;
+
+      if (visionImages.length > 0) {
+        const visionResponse = await openai.chat.completions.create({
+          model: process.env.OPENAI_VISION_MODEL || "gpt-4o",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `I'm providing ${visionImages.length === 2 ? "two images: the first is a person's photo and the second is a clothing item" : visionImages.length === 1 && userImageFullUrl ? "a person's photo" : "a clothing item photo"}.
+
+${userImageFullUrl ? "For the person: Describe their general appearance, body type, skin tone, hair color/style, and overall look in detail. DO NOT describe their clothing." : ""}
+For the clothing item "${productTitle}" (tags: ${productTagsList}): Describe the garment in detail including type, color, pattern, fabric, fit style, and any distinctive details.
+
+Provide your response as JSON: {"person": "description of person", "garment": "description of garment"}`
+                },
+                ...visionImages,
+              ],
+            },
+          ],
+          max_tokens: 500,
+          response_format: { type: "json_object" },
+        });
+
+        try {
+          const parsed = JSON.parse(visionResponse.choices[0]?.message?.content || "{}");
+          if (parsed.person) personDescription = parsed.person;
+          if (parsed.garment) garmentDescription = parsed.garment;
+        } catch {
+          console.error("Failed to parse vision response");
+        }
+      }
+
+      const tryonPrompt = `A fashion photography portrait of ${personDescription} wearing: ${garmentDescription}. Full-body shot, clean white studio background, natural lighting, professional fashion catalog style. The clothing should look natural and well-fitted on the person. Realistic, high quality photograph.`;
+
+      const imageResponse = await openai.images.generate({
+        model: "dall-e-3",
+        prompt: tryonPrompt,
+        n: 1,
+        size: "1024x1792",
+        quality: "standard",
+      });
+
+      const generatedUrl = imageResponse.data[0]?.url;
+      if (!generatedUrl) {
+        return res.status(500).json({ message: "No se pudo generar la imagen" });
+      }
+
+      const imageRes = await fetch(generatedUrl);
+      if (!imageRes.ok) {
+        return res.status(500).json({ message: "Error al descargar la imagen generada" });
+      }
+      const imageBuffer = Buffer.from(await imageRes.arrayBuffer());
+      const resultFilename = `tryon-${req.user!.id.slice(0, 8)}-${productId.slice(0, 8)}-${Date.now()}.png`;
+      const resultPath = path.join(process.cwd(), "uploads", "tryon", resultFilename);
+      fs.writeFileSync(resultPath, imageBuffer);
+      const resultImageUrl = `/uploads/tryon/${resultFilename}`;
+
+      const tryonResult = await storage.createTryonResult({
+        userId: req.user!.id,
+        productId,
+        userImageUrl: userImageUrl,
+        resultImageUrl,
+      });
+
+      res.json(tryonResult);
+    } catch (error) {
+      console.error("Try-on generation error:", error);
+      res.status(500).json({ message: "Error al generar la imagen de prueba virtual" });
+    }
   });
 
   app.post(api.admin.reindex.path, async (req, res) => {

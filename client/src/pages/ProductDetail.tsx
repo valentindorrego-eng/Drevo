@@ -2,11 +2,13 @@ import { useRoute, Link } from "wouter";
 import { Navigation } from "@/components/Navigation";
 import { useProduct } from "@/hooks/use-search";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
-import { ArrowLeft, Share2, Heart, Info, ShoppingBag, Check, ExternalLink } from "lucide-react";
+import { ArrowLeft, Share2, Heart, Info, ShoppingBag, Check, ExternalLink, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { TryOnModal } from "@/components/TryOnModal";
 
 export default function ProductDetail() {
   const [, params] = useRoute("/product/:id");
@@ -15,8 +17,10 @@ export default function ProductDetail() {
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [justAdded, setJustAdded] = useState(false);
+  const [tryOnOpen, setTryOnOpen] = useState(false);
   const { addItem } = useCart();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   if (isLoading) {
     return (
@@ -210,6 +214,21 @@ export default function ProductDetail() {
                   </AnimatePresence>
                 </button>
 
+                <button
+                  onClick={() => {
+                    if (!user) {
+                      toast({ title: "Iniciá sesión", description: "Necesitás una cuenta para usar el probador virtual.", variant: "destructive" });
+                      return;
+                    }
+                    setTryOnOpen(true);
+                  }}
+                  data-testid="button-try-on"
+                  className="w-full h-12 border border-[#C8FF00]/30 rounded font-medium text-sm text-[#C8FF00] hover:bg-[#C8FF00]/10 hover:border-[#C8FF00]/50 transition-all flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Probar producto
+                </button>
+
                 {product.externalUrl && (
                   <a
                     href={product.externalUrl}
@@ -251,6 +270,14 @@ export default function ProductDetail() {
 
         </div>
       </div>
+
+      <TryOnModal
+        productId={id}
+        productTitle={product.title}
+        productImage={currentImage}
+        isOpen={tryOnOpen}
+        onClose={() => setTryOnOpen(false)}
+      />
     </div>
   );
 }
