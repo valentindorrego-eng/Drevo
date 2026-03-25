@@ -1262,50 +1262,58 @@ Reply with ONLY valid JSON, no explanation.`
         return res.status(400).json({ message: "No se pudieron cargar las imágenes necesarias" });
       }
 
-      const { Modality } = await import("@google/genai");
-      const { ai } = await import("./replit_integrations/image/client");
-
-      const tryonPrompt = `You are a photo editing assistant specialized in virtual try-on.
-
-TASK: Place the clothing item from Image 2 onto the person in Image 1.
-
-STRICT RULES — follow ALL of these exactly:
-1. PRESERVE the person from Image 1 completely: their face, hair, skin tone, body shape, posture, and expression must remain identical
-2. PRESERVE the background from Image 1 exactly as it is
-3. PRESERVE the bottom clothing (pants, shorts, skirt) from Image 1
-4. REPLACE ONLY the top garment with the item shown in Image 2 ("${productTitle}")
-5. The replaced garment must look naturally worn — adjust for body shape, lighting, and shadows
-6. Do NOT generate a new person. Do NOT change the face. Do NOT change the background.
-7. Output a single photorealistic image that looks like a real photograph
-${physicalDesc ? `8. Person's measurements: ${physicalDesc}` : ""}
-
-Image 1: the person who will wear the clothes
-Image 2: the clothing item to apply`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-image",
-        contents: [{
-          role: "user",
-          parts: [
-            { text: tryonPrompt },
-            ...imageParts,
-          ],
-        }],
-        config: {
-          responseModalities: [Modality.TEXT, Modality.IMAGE],
-        },
-      });
-
-      const candidate = response.candidates?.[0];
-      const generatedImagePart = candidate?.content?.parts?.find(
-        (part: { inlineData?: { data?: string; mimeType?: string } }) => part.inlineData
-      );
-
-      if (!generatedImagePart?.inlineData?.data) {
-        return res.status(500).json({ message: "No se pudo generar la imagen" });
+      if (!openai) {
+        return res.status(500).json({ message: "El servicio de IA no está configurado. Contactá al administrador." });
       }
 
-      const imageBuffer = Buffer.from(generatedImagePart.inlineData.data, "base64");
+      const tryonPrompt = `You are a virtual try-on photo editor. Edit Image 1 (the person's photo) to replace ONLY their top garment with the clothing item shown in Image 2 ("${productTitle}").
+
+Rules:
+- Keep the person's face, hair, skin tone, body shape, pose, and expression EXACTLY as they are
+- Keep the background EXACTLY as it is
+- Keep the bottom clothing (pants, shorts, skirt) EXACTLY as they are
+- Replace ONLY the upper body garment with the item from Image 2
+- Make the clothing fit naturally on the person's body with correct lighting, shadows, and wrinkles
+- The result must look like a real photograph, not a collage or overlay
+- Maintain the same camera angle and perspective as Image 1
+- Output a single high-quality photorealistic image
+${physicalDesc ? `- The person is ${physicalDesc}` : ""}`;
+
+      const userImg = imageParts[0].inlineData;
+      const productImg = imageParts[1].inlineData;
+
+      const response = await openai.responses.create({
+        model: "gpt-4o",
+        input: [
+          {
+            role: "user" as const,
+            content: [
+              { type: "input_text" as const, text: tryonPrompt },
+              {
+                type: "input_image" as const,
+                image_url: `data:${userImg.mimeType};base64,${userImg.data}`,
+                detail: "high" as const,
+              },
+              {
+                type: "input_image" as const,
+                image_url: `data:${productImg.mimeType};base64,${productImg.data}`,
+                detail: "high" as const,
+              },
+            ],
+          },
+        ],
+        tools: [{ type: "image_generation" as const }],
+      });
+
+      const imageOutput = (response.output as any[])?.find(
+        (item: any) => item.type === "image_generation_call"
+      );
+
+      if (!imageOutput?.result) {
+        return res.status(500).json({ message: "No se pudo generar la imagen. Intentá de nuevo." });
+      }
+
+      const imageBuffer = Buffer.from(imageOutput.result, "base64");
       const resultFilename = `tryon-${getAuthUser(req).id.slice(0, 8)}-${productId.slice(0, 8)}-${Date.now()}.png`;
       const resultPath = path.join(process.cwd(), "uploads", "tryon", resultFilename);
       fs.writeFileSync(resultPath, imageBuffer);
@@ -1319,9 +1327,21 @@ Image 2: the clothing item to apply`;
       });
 
       res.json(tryonResult);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Try-on generation error:", error);
-      res.status(500).json({ message: "Error al generar la imagen de prueba virtual" });
+      if (error?.status === 429 || error?.code === "rate_limit_exceeded") {
+        return res.status(429).json({ message: "El servicio de IA está saturado. Esperá un momento e intentá de nuevo." });
+      }
+      if (error?.code === "content_policy_violation") {
+        return res.status(400).json({ message: "La imagen no pudo ser procesada por políticas de contenido. Probá con otra foto." });
+      }
+      if (error?.code === "insufficient_quota" || error?.status === 402) {
+        return res.status(503).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
+      }
+      if (error?.code === "invalid_image" || error?.message?.includes("image")) {
+        return res.status(400).json({ message: "No se pudo procesar la imagen. Asegurate de que sea una foto clara de cuerpo completo." });
+      }
+      res.status(500).json({ message: "Error al generar la imagen de prueba virtual. Intentá de nuevo." });
     }
   });
 

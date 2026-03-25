@@ -101,18 +101,18 @@ Preferred communication style: Simple, everyday language.
   - Requires `OPENAI_API_KEY` secret. Search degrades gracefully (basic text matching) if key is missing.
 
 ### Virtual Try-On Pipeline
-- Uses **Gemini 2.5 Flash Image** (`gemini-2.5-flash-image` / "nano banana") via Replit AI Integrations
-- Multimodal input: user photo + product image sent as base64 inline data
-- Single-call generation: Gemini receives both images and generates the try-on result directly
-- No separate "describe then generate" step — native image-conditioned generation
+- Uses **GPT-4o** via OpenAI Responses API (`openai.responses.create()`) with `image_generation` tool
+- Multimodal input: user photo + product image sent as base64 inline data with `detail: "high"`
+- Single-call generation: GPT-4o receives both images and generates the try-on result directly
+- Gemini integration files kept intact as fallback (`server/replit_integrations/image/`)
 - Per-user rate limiting (5 generations/hour), DB-backed caching with latest-result retrieval
 - Auth-gated `/uploads/tryon` route for privacy
-- Integration files: `server/replit_integrations/image/` (client + routes), `server/replit_integrations/chat/` (chat module), `server/replit_integrations/batch/` (batch utilities)
+- Enhanced error handling: rate limits, content policy violations, quota errors all return Spanish user-friendly messages
 
 ### Key NPM Packages
 - `drizzle-orm` + `drizzle-kit` — ORM and migration tooling for PostgreSQL
-- `openai` — Official OpenAI SDK (embeddings + intent extraction)
-- `@google/genai` — Google Gemini SDK (virtual try-on image generation via Replit AI Integrations)
+- `openai` — Official OpenAI SDK (embeddings, intent extraction, and virtual try-on image generation via Responses API)
+- `@google/genai` — Google Gemini SDK (kept as fallback; previously used for virtual try-on)
 - `express` v5 — HTTP server
 - `@tanstack/react-query` — Client-side data fetching/caching
 - `framer-motion` — Animations
