@@ -1265,15 +1265,26 @@ Reply with ONLY valid JSON, no explanation.`
       const { Modality } = await import("@google/genai");
       const { ai } = await import("./replit_integrations/image/client");
 
-      const tryonPrompt = `Replace ONLY the top garment of the person in Image 1 (the base image) with the garment from Image 2 (the reference image: "${productTitle}").
-Maintain 100% the original person: face, skin tone, body shape, pose, lighting, background, shadows and all other clothing (pants, shoes, accessories).
-The new garment must perfectly match the original perspective, wrinkles, fit and lighting conditions of the scene.
-Preserve the exact design, colors, logo and proportions of the reference garment without any distortion or modification.
-Do not change identity, do not retouch face, do not alter environment.
-Ultra realistic result, seamless integration, natural fabric behavior.
-${physicalDesc ? `Person's build: ${physicalDesc}` : ""}
-Image 1: the person (base image)
-Image 2: the garment to apply (reference image)`;
+      const tryonPrompt = `VIRTUAL TRY-ON TASK:
+
+You have two images:
+- IMAGE 1 (first image): A photo of a REAL PERSON — this is the customer. This is the BASE photo.
+- IMAGE 2 (second image): A product photo showing the garment "${productTitle}". It may show the garment on a mannequin, flat lay, or worn by a DIFFERENT model. IGNORE the model in Image 2 — only extract the GARMENT from it.
+
+YOUR JOB: Take the garment (top/shirt/t-shirt) visible in Image 2 and digitally place it on the person from Image 1.
+
+CRITICAL RULES:
+1. The OUTPUT image must show the EXACT SAME PERSON from Image 1 — same face, hair, skin tone, body shape, pose, expression, arms position
+2. The OUTPUT must have the EXACT SAME background, lighting, and camera angle as Image 1
+3. The OUTPUT must keep the SAME bottom clothing (pants, shorts, shoes) from Image 1
+4. ONLY replace the top/upper body garment with the one from Image 2
+5. The garment must look naturally worn — correct perspective, wrinkles, shadows matching Image 1's lighting
+6. Preserve the exact design, colors, logos, and patterns of the garment from Image 2
+7. Maintain the EXACT SAME orientation and aspect ratio as Image 1 — do NOT rotate the image
+8. Do NOT generate a new person. Do NOT use the model from Image 2.
+${physicalDesc ? `9. Person's build: ${physicalDesc}` : ""}
+
+Output a single photorealistic image.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-image",
