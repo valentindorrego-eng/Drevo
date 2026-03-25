@@ -599,15 +599,17 @@ Reply with ONLY valid JSON, no explanation.`
         intent.colors.primary.forEach((color: string) => {
           const synonyms = allColorWords[color] || [color];
           if (synonyms.some(s => pText.includes(s))) {
-            score += 0.15;
+            score += 0.25;
             reasons.push(`Color ${colorDisplayName[color] || color}`);
+          } else {
+            score -= 0.10;
           }
         });
         if (intent.colors.secondary) {
           intent.colors.secondary.forEach((color: string) => {
             const synonyms = allColorWords[color] || [color];
             if (synonyms.some(s => pText.includes(s))) {
-              score += 0.10;
+              score += 0.12;
               reasons.push(`Color ${colorDisplayName[color] || color}`);
             }
           });
@@ -776,8 +778,8 @@ Reply with ONLY valid JSON, no explanation.`
           const pTags = (p.tags || []).map((t: any) => typeof t === 'string' ? t : t.tag || '').join(' ').toLowerCase();
           let score = 0;
           for (const c of colors) {
-            if (pTitle.includes(c)) score += 2;
-            else if (pTags.includes(c)) score += 1;
+            if (pTitle.includes(c)) score += 8;
+            else if (pTags.includes(c)) score += 4;
           }
           return score;
         };
@@ -1157,6 +1159,7 @@ Reply with ONLY valid JSON, no explanation.`
         "d2r9epyceweg5n.cloudfront.net",
         "images.tiendanube.com",
         "acdn.mitiendanube.com",
+        "acdn-us.mitiendanube.com",
         "d26lpennugtm8s.cloudfront.net",
         "lh3.googleusercontent.com",
         "platform-lookaside.fbsbx.com",
