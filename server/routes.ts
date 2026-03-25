@@ -626,8 +626,21 @@ Reply with ONLY valid JSON, no explanation.`
 
         // Gender matching
         if (intent.gender && p.gender) {
-          if (p.gender === intent.gender || p.gender === "unisex") {
+          if (p.gender === intent.gender) {
             score += 0.05;
+          } else if (p.gender === "unisex") {
+            const pTagText = (p.tags || []).map((t: any) => typeof t === 'string' ? t : t.tag || '').join(' ').toLowerCase();
+            const wantsMenRerank = intent.gender === 'men' || intent.gender === 'male' || intent.gender === 'hombre';
+            const wantsWomenRerank = intent.gender === 'women' || intent.gender === 'female' || intent.gender === 'mujer';
+            const hasMujerTag = /\b(mujer|women|female|dama)\b/.test(pTagText);
+            const hasHombreTag = /\b(hombre|men|male)\b/.test(pTagText);
+            if (wantsMenRerank && hasMujerTag && !hasHombreTag) {
+              score -= 0.30;
+            } else if (wantsWomenRerank && hasHombreTag && !hasMujerTag) {
+              score -= 0.30;
+            } else {
+              score += 0.03;
+            }
           } else {
             score -= 0.15;
           }
@@ -1016,6 +1029,16 @@ Reply with ONLY valid JSON, no explanation.`
 
         filteredResults = scoredResults.filter(r => {
           if (bundleIds.has(r.id)) return false;
+          const rTags = (r.tags || []).map((t: any) => typeof t === 'string' ? t : t.tag || '').join(' ').toLowerCase();
+          const rGenderMismatch = (() => {
+            if (!intent.gender) return false;
+            const wM = intent.gender === 'men' || intent.gender === 'male' || intent.gender === 'hombre';
+            const wW = intent.gender === 'women' || intent.gender === 'female' || intent.gender === 'mujer';
+            if (wM && /\b(mujer|women|female|dama)\b/.test(rTags) && !/\b(hombre|men|male)\b/.test(rTags)) return true;
+            if (wW && /\b(hombre|men|male)\b/.test(rTags) && !/\b(mujer|women|female|dama)\b/.test(rTags)) return true;
+            return false;
+          })();
+          if (rGenderMismatch) return false;
           const rTitle = r.title.toLowerCase();
           const rCatName = catNameByIdFilter.get(r.categoryId) || "";
 
@@ -1036,6 +1059,16 @@ Reply with ONLY valid JSON, no explanation.`
         });
       }
 
+      if (intent.gender) {
+        const wMen = intent.gender === 'men' || intent.gender === 'male' || intent.gender === 'hombre';
+        const wWomen = intent.gender === 'women' || intent.gender === 'female' || intent.gender === 'mujer';
+        filteredResults = filteredResults.filter(r => {
+          const rTags = (r.tags || []).map((t: any) => typeof t === 'string' ? t : t.tag || '').join(' ').toLowerCase();
+          if (wMen && /\b(mujer|women|female|dama)\b/.test(rTags) && !/\b(hombre|men|male)\b/.test(rTags)) return false;
+          if (wWomen && /\b(hombre|men|male)\b/.test(rTags) && !/\b(mujer|women|female|dama)\b/.test(rTags)) return false;
+          return true;
+        });
+      }
       let finalResults = filteredResults;
       if (userSize && sizeFilterEnabled) {
         finalResults = filteredResults.filter(r => r._hasUserSize);
