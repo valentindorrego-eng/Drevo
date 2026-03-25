@@ -1305,8 +1305,9 @@ ${physicalDesc ? `- The person is ${physicalDesc}` : ""}`;
         tools: [{ type: "image_generation" as const }],
       });
 
-      const imageOutput = (response.output as any[])?.find(
-        (item: any) => item.type === "image_generation_call"
+      const imageOutput = response.output.find(
+        (item): item is OpenAI.Responses.ResponseOutputItem.ImageGenerationCall =>
+          item.type === "image_generation_call"
       );
 
       if (!imageOutput?.result) {
@@ -1327,19 +1328,23 @@ ${physicalDesc ? `- The person is ${physicalDesc}` : ""}`;
       });
 
       res.json(tryonResult);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Try-on generation error:", error);
-      if (error?.status === 429 || error?.code === "rate_limit_exceeded") {
+      if (error instanceof OpenAI.RateLimitError) {
         return res.status(429).json({ message: "El servicio de IA está saturado. Esperá un momento e intentá de nuevo." });
       }
-      if (error?.code === "content_policy_violation") {
-        return res.status(400).json({ message: "La imagen no pudo ser procesada por políticas de contenido. Probá con otra foto." });
+      if (error instanceof OpenAI.BadRequestError) {
+        const code = (error.error as { code?: string })?.code;
+        if (code === "content_policy_violation") {
+          return res.status(400).json({ message: "La imagen no pudo ser procesada por políticas de contenido. Probá con otra foto." });
+        }
+        if (code === "invalid_image") {
+          return res.status(400).json({ message: "No se pudo procesar la imagen. Asegurate de que sea una foto clara de cuerpo completo." });
+        }
+        return res.status(400).json({ message: "No se pudo procesar la solicitud. Probá con otra foto." });
       }
-      if (error?.code === "insufficient_quota" || error?.status === 402) {
+      if (error instanceof OpenAI.APIError && error.status === 402) {
         return res.status(503).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
-      }
-      if (error?.code === "invalid_image" || error?.message?.includes("image")) {
-        return res.status(400).json({ message: "No se pudo procesar la imagen. Asegurate de que sea una foto clara de cuerpo completo." });
       }
       res.status(500).json({ message: "Error al generar la imagen de prueba virtual. Intentá de nuevo." });
     }
