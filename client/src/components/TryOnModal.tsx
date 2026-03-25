@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { X, Upload, Camera, Loader2, Sparkles, RotateCcw, User } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
+import { X, Upload, Camera, Loader2, Sparkles, RotateCcw, User, Download, Share2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -13,6 +13,57 @@ interface TryOnModalProps {
 
 type PhotoSource = "upload" | "profile";
 
+function addWatermark(imageSrc: string, productTitle: string): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("Canvas not supported"));
+
+      ctx.drawImage(img, 0, 0);
+
+      const bannerHeight = Math.max(48, canvas.height * 0.06);
+      const y = canvas.height - bannerHeight;
+
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.fillRect(0, y, canvas.width, bannerHeight);
+
+      const fontSize = Math.max(14, bannerHeight * 0.4);
+      ctx.font = `bold ${fontSize}px 'Space Grotesk', 'Inter', sans-serif`;
+      ctx.fillStyle = "#C8FF00";
+      ctx.textBaseline = "middle";
+      const padding = fontSize * 0.8;
+      ctx.fillText("DREVO", padding, y + bannerHeight / 2);
+
+      const drevoWidth = ctx.measureText("DREVO").width;
+
+      const smallFontSize = fontSize * 0.6;
+      ctx.font = `${smallFontSize}px 'Inter', sans-serif`;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+      ctx.fillText(`drevo.replit.app`, padding + drevoWidth + fontSize * 0.6, y + bannerHeight / 2);
+
+      const productFontSize = fontSize * 0.55;
+      ctx.font = `${productFontSize}px 'Inter', sans-serif`;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+      const truncatedTitle = productTitle.length > 40 ? productTitle.slice(0, 37) + "..." : productTitle;
+      const titleWidth = ctx.measureText(truncatedTitle).width;
+      ctx.fillText(truncatedTitle, canvas.width - titleWidth - padding, y + bannerHeight / 2);
+
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Failed to create image"))),
+        "image/png",
+        1
+      );
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = imageSrc;
+  });
+}
+
 export function TryOnModal({ productId, productTitle, productImage, isOpen, onClose }: TryOnModalProps) {
   const { user } = useAuth();
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -23,6 +74,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
   const [photoSource, setPhotoSource] = useState<PhotoSource>(
     user?.fullBodyImageUrl ? "profile" : "upload"
   );
+  const [isSharing, setIsSharing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const profilePhoto = user?.fullBodyImageUrl || user?.profileImageUrl || null;
@@ -88,6 +140,61 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
   const handleRetry = () => {
     handleGenerate(true);
   };
+
+  const handleDownload = useCallback(async () => {
+    if (!resultImage) return;
+    setIsSharing(true);
+    try {
+      const blob = await addWatermark(resultImage, productTitle);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `drevo-tryon-${productTitle.replace(/\s+/g, "-").toLowerCase()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      const a = document.createElement("a");
+      a.href = resultImage;
+      a.download = `drevo-tryon.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } finally {
+      setIsSharing(false);
+    }
+  }, [resultImage, productTitle]);
+
+  const handleShare = useCallback(async () => {
+    if (!resultImage) return;
+    setIsSharing(true);
+    try {
+      const blob = await addWatermark(resultImage, productTitle);
+      const file = new File([blob], `drevo-tryon-${productTitle.replace(/\s+/g, "-").toLowerCase()}.png`, { type: "image/png" });
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: `Mirá cómo me queda — ${productTitle}`,
+          text: `Probé esta prenda en DREVO ✨\n${productTitle}`,
+          files: [file],
+        });
+      } else if (navigator.share) {
+        await navigator.share({
+          title: `Mirá cómo me queda — ${productTitle}`,
+          text: `Probé esta prenda en DREVO ✨\n${productTitle}\n${window.location.origin}/product/${productId}`,
+        });
+      } else {
+        await handleDownload();
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== "AbortError") {
+        await handleDownload();
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  }, [resultImage, productTitle, productId, handleDownload]);
 
   if (!isOpen) return null;
 
@@ -243,14 +350,32 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                 </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={handleRetry}
-                    className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-neutral-300 font-medium flex items-center justify-center gap-2 transition-colors"
-                    data-testid="button-retry-tryon"
+                    onClick={handleDownload}
+                    disabled={isSharing}
+                    className="flex-1 py-3 bg-[#C8FF00] hover:bg-[#A3D600] rounded-xl text-black font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    data-testid="button-download-tryon"
                   >
-                    <RotateCcw className="w-4 h-4" />
-                    Generar de nuevo
+                    <Download className="w-4 h-4" />
+                    Guardar imagen
+                  </button>
+                  <button
+                    onClick={handleShare}
+                    disabled={isSharing}
+                    className="flex-1 py-3 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl text-white font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    data-testid="button-share-tryon"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Compartir
                   </button>
                 </div>
+                <button
+                  onClick={handleRetry}
+                  className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-neutral-400 text-sm flex items-center justify-center gap-2 transition-colors"
+                  data-testid="button-retry-tryon"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Generar de nuevo
+                </button>
                 <p className="text-xs text-neutral-600 text-center">
                   Imagen generada por IA. Puede no representar fielmente el producto.
                 </p>
