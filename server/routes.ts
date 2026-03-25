@@ -1343,8 +1343,11 @@ ${physicalDesc ? `- The person is ${physicalDesc}` : ""}`;
         }
         return res.status(400).json({ message: "No se pudo procesar la solicitud. Probá con otra foto." });
       }
-      if (error instanceof OpenAI.APIError && error.status === 402) {
-        return res.status(503).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
+      if (error instanceof OpenAI.APIError) {
+        const errorCode = (error.error as { code?: string })?.code;
+        if (error.status === 402 || errorCode === "insufficient_quota") {
+          return res.status(503).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
+        }
       }
       res.status(500).json({ message: "Error al generar la imagen de prueba virtual. Intentá de nuevo." });
     }
