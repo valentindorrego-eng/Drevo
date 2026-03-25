@@ -1262,59 +1262,43 @@ Reply with ONLY valid JSON, no explanation.`
         return res.status(400).json({ message: "No se pudieron cargar las imágenes necesarias" });
       }
 
-      if (!openai) {
-        return res.status(500).json({ message: "El servicio de IA no está configurado. Contactá al administrador." });
-      }
+      const { Modality } = await import("@google/genai");
+      const { ai } = await import("./replit_integrations/image/client");
 
-      const tryonPrompt = `You are a virtual try-on photo editor. Edit Image 1 (the person's photo) to replace ONLY their top garment with the clothing item shown in Image 2 ("${productTitle}").
+      const tryonPrompt = `Replace ONLY the top garment of the person in Image 1 (the base image) with the garment from Image 2 (the reference image: "${productTitle}").
+Maintain 100% the original person: face, skin tone, body shape, pose, lighting, background, shadows and all other clothing (pants, shoes, accessories).
+The new garment must perfectly match the original perspective, wrinkles, fit and lighting conditions of the scene.
+Preserve the exact design, colors, logo and proportions of the reference garment without any distortion or modification.
+Do not change identity, do not retouch face, do not alter environment.
+Ultra realistic result, seamless integration, natural fabric behavior.
+${physicalDesc ? `Person's build: ${physicalDesc}` : ""}
+Image 1: the person (base image)
+Image 2: the garment to apply (reference image)`;
 
-Rules:
-- Keep the person's face, hair, skin tone, body shape, pose, and expression EXACTLY as they are
-- Keep the background EXACTLY as it is
-- Keep the bottom clothing (pants, shorts, skirt) EXACTLY as they are
-- Replace ONLY the upper body garment with the item from Image 2
-- Make the clothing fit naturally on the person's body with correct lighting, shadows, and wrinkles
-- The result must look like a real photograph, not a collage or overlay
-- Maintain the same camera angle and perspective as Image 1
-- Output a single high-quality photorealistic image
-${physicalDesc ? `- The person is ${physicalDesc}` : ""}`;
-
-      const userImg = imageParts[0].inlineData;
-      const productImg = imageParts[1].inlineData;
-
-      const response = await openai.responses.create({
-        model: "gpt-4o",
-        input: [
-          {
-            role: "user" as const,
-            content: [
-              { type: "input_text" as const, text: tryonPrompt },
-              {
-                type: "input_image" as const,
-                image_url: `data:${userImg.mimeType};base64,${userImg.data}`,
-                detail: "high" as const,
-              },
-              {
-                type: "input_image" as const,
-                image_url: `data:${productImg.mimeType};base64,${productImg.data}`,
-                detail: "high" as const,
-              },
-            ],
-          },
-        ],
-        tools: [{ type: "image_generation" as const }],
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-image",
+        contents: [{
+          role: "user",
+          parts: [
+            { text: tryonPrompt },
+            ...imageParts,
+          ],
+        }],
+        config: {
+          responseModalities: [Modality.TEXT, Modality.IMAGE],
+        },
       });
 
-      const imageOutput = response.output.find(
-        (item): item is OpenAI.Responses.ResponseOutputItem.ImageGenerationCall =>
-          item.type === "image_generation_call"
+      const candidate = response.candidates?.[0];
+      const generatedImagePart = candidate?.content?.parts?.find(
+        (part: { inlineData?: { data?: string; mimeType?: string } }) => part.inlineData
       );
 
-      if (!imageOutput?.result) {
+      if (!generatedImagePart?.inlineData?.data) {
         return res.status(500).json({ message: "No se pudo generar la imagen. Intentá de nuevo." });
       }
 
-      const imageBuffer = Buffer.from(imageOutput.result, "base64");
+      const imageBuffer = Buffer.from(generatedImagePart.inlineData.data, "base64");
       const resultFilename = `tryon-${getAuthUser(req).id.slice(0, 8)}-${productId.slice(0, 8)}-${Date.now()}.png`;
       const resultPath = path.join(process.cwd(), "uploads", "tryon", resultFilename);
       fs.writeFileSync(resultPath, imageBuffer);
@@ -1330,24 +1314,12 @@ ${physicalDesc ? `- The person is ${physicalDesc}` : ""}`;
       res.json(tryonResult);
     } catch (error: unknown) {
       console.error("Try-on generation error:", error);
-      if (error instanceof OpenAI.RateLimitError) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("429") || errMsg.includes("rate")) {
         return res.status(429).json({ message: "El servicio de IA está saturado. Esperá un momento e intentá de nuevo." });
       }
-      if (error instanceof OpenAI.BadRequestError) {
-        const code = (error.error as { code?: string })?.code;
-        if (code === "content_policy_violation") {
-          return res.status(400).json({ message: "La imagen no pudo ser procesada por políticas de contenido. Probá con otra foto." });
-        }
-        if (code === "invalid_image") {
-          return res.status(400).json({ message: "No se pudo procesar la imagen. Asegurate de que sea una foto clara de cuerpo completo." });
-        }
-        return res.status(400).json({ message: "No se pudo procesar la solicitud. Probá con otra foto." });
-      }
-      if (error instanceof OpenAI.APIError) {
-        const errorCode = (error.error as { code?: string })?.code;
-        if (error.status === 402 || errorCode === "insufficient_quota") {
-          return res.status(503).json({ message: "El servicio de generación de imágenes no está disponible en este momento." });
-        }
+      if (errMsg.includes("SAFETY") || errMsg.includes("blocked") || errMsg.includes("policy")) {
+        return res.status(400).json({ message: "La imagen no pudo ser procesada por políticas de contenido. Probá con otra foto." });
       }
       res.status(500).json({ message: "Error al generar la imagen de prueba virtual. Intentá de nuevo." });
     }

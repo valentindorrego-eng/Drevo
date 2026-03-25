@@ -101,18 +101,18 @@ Preferred communication style: Simple, everyday language.
   - Requires `OPENAI_API_KEY` secret. Search degrades gracefully (basic text matching) if key is missing.
 
 ### Virtual Try-On Pipeline
-- Uses **GPT-4o** via OpenAI Responses API (`openai.responses.create()`) with `image_generation` tool
-- Multimodal input: user photo + product image sent as base64 inline data with `detail: "high"`
-- Single-call generation: GPT-4o receives both images and generates the try-on result directly
-- Gemini integration files kept intact as fallback (`server/replit_integrations/image/`)
+- Uses **Gemini 2.5 Flash Image** (`gemini-2.5-flash-image`) via Replit AI Integrations
+- Multimodal input: user photo + product image sent as base64 inline data
+- Single-call generation: Gemini receives both images and generates the try-on result directly
+- Optimized prompt focused on garment replacement with ultra-realistic output
 - Per-user rate limiting (5 generations/hour), DB-backed caching with latest-result retrieval
 - Auth-gated `/uploads/tryon` route for privacy
-- Enhanced error handling: rate limits, content policy violations, quota errors all return Spanish user-friendly messages
+- Integration files: `server/replit_integrations/image/` (client + routes)
 
 ### Key NPM Packages
 - `drizzle-orm` + `drizzle-kit` — ORM and migration tooling for PostgreSQL
-- `openai` — Official OpenAI SDK (embeddings, intent extraction, and virtual try-on image generation via Responses API)
-- `@google/genai` — Google Gemini SDK (kept as fallback; previously used for virtual try-on)
+- `openai` — Official OpenAI SDK (embeddings + intent extraction)
+- `@google/genai` — Google Gemini SDK (virtual try-on image generation via Replit AI Integrations)
 - `express` v5 — HTTP server
 - `@tanstack/react-query` — Client-side data fetching/caching
 - `framer-motion` — Animations
