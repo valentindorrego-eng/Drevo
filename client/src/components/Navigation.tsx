@@ -126,21 +126,20 @@ export function Navigation() {
           {mobileMenuOpen ? <X /> : <Menu />}
         </button>
 
-        <div className={cn(
-          "fixed inset-0 bg-black z-40 flex flex-col justify-center items-center gap-8 transition-transform duration-300 md:hidden",
-          mobileMenuOpen ? "translate-x-0" : "translate-x-full"
-        )}>
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-2xl font-display font-medium text-white"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
+        {mobileMenuOpen && (
+          <div className="fixed inset-0 bg-black z-40 flex flex-col justify-center items-center gap-8 md:hidden">
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-2xl font-display font-medium text-white"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </header>
   );
