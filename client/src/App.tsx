@@ -15,6 +15,8 @@ import Auth from "@/pages/Auth";
 import Profile from "@/pages/Profile";
 import StylePassport from "@/pages/StylePassport";
 import Collections from "@/pages/Collections";
+import Checkout from "@/pages/Checkout";
+import Order from "@/pages/Order";
 import NotFound from "@/pages/not-found";
 
 const PageTransition = ({ children }: { children: React.ReactNode }) => (
@@ -43,6 +45,8 @@ function Router() {
           <Route path="/profile" component={Profile} />
           <Route path="/style-passport" component={StylePassport} />
           <Route path="/collections" component={Collections} />
+          <Route path="/checkout" component={Checkout} />
+          <Route path="/order/:id" component={Order} />
           <Route component={NotFound} />
         </Switch>
       </PageTransition>

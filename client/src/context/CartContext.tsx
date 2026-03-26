@@ -9,9 +9,11 @@ export interface CartItem {
   currency: string;
   imageUrl: string;
   brand: string;
+  brandId: string | null;
   sizeLabel: string;
   quantity: number;
   externalUrl: string | null;
+  variantId?: string | null;
 }
 
 interface CartContextType {

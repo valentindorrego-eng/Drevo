@@ -126,6 +126,7 @@ export default function ProductDetail() {
     }
     const selectedSizeResolved = sizeToUse;
 
+    const variant = product.variants?.find((v: any) => v.sizeLabel === selectedSizeResolved);
     addItem({
       id: product.id,
       title: product.title,
@@ -134,8 +135,10 @@ export default function ProductDetail() {
       currency: product.currency || "ARS",
       imageUrl: images[0]?.url || "",
       brand: product.brand?.name || "DREVO",
+      brandId: product.brandId || null,
       sizeLabel: selectedSizeResolved,
       externalUrl: product.externalUrl || null,
+      variantId: variant?.id || null,
     });
 
     setJustAdded(true);

@@ -176,6 +176,88 @@ export const collectionItems = pgTable("collection_items", {
   notes: text("notes"),
 });
 
+// ─── Checkout & Orders ───
+
+export const userAddresses = pgTable("user_addresses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  fullName: text("full_name").notNull(),
+  phone: text("phone"),
+  street: text("street").notNull(),
+  streetNumber: text("street_number").notNull(),
+  floor: text("floor"),
+  city: text("city").notNull(),
+  province: text("province").notNull(),
+  postalCode: text("postal_code").notNull(),
+  country: text("country").default("AR"),
+  isDefault: boolean("is_default").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const orders = pgTable("orders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orderNumber: text("order_number").notNull().unique(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  addressId: uuid("address_id").references(() => userAddresses.id),
+  status: text("status").default("pending"), // pending, paid, processing, shipped, delivered, cancelled
+  paymentStatus: text("payment_status").default("pending"), // pending, approved, rejected, refunded
+  mpPaymentId: text("mp_payment_id"),
+  mpPreferenceId: text("mp_preference_id"),
+  subtotal: numeric("subtotal").notNull(),
+  shippingTotal: numeric("shipping_total").default("0"),
+  commissionTotal: numeric("commission_total").notNull(),
+  total: numeric("total").notNull(),
+  currency: text("currency").default("ARS"),
+  customerEmail: text("customer_email"),
+  customerName: text("customer_name"),
+  shippingAddress: jsonb("shipping_address"), // snapshot of address at time of order
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  paidAt: timestamp("paid_at"),
+});
+
+export const orderItems = pgTable("order_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orderId: uuid("order_id").references(() => orders.id).notNull(),
+  productId: uuid("product_id").references(() => products.id).notNull(),
+  variantId: uuid("variant_id").references(() => productVariants.id),
+  brandId: uuid("brand_id").references(() => brands.id),
+  title: text("title").notNull(),
+  sizeLabel: text("size_label"),
+  quantity: integer("quantity").notNull(),
+  unitPrice: numeric("unit_price").notNull(),
+  totalPrice: numeric("total_price").notNull(),
+  imageUrl: text("image_url"),
+});
+
+export const brandOrders = pgTable("brand_orders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orderId: uuid("order_id").references(() => orders.id).notNull(),
+  brandId: uuid("brand_id").references(() => brands.id).notNull(),
+  externalOrderId: text("external_order_id"), // Tiendanube order ID
+  status: text("status").default("pending"), // pending, created, packed, shipped, delivered, cancelled
+  subtotal: numeric("subtotal").notNull(),
+  commissionAmount: numeric("commission_amount").notNull(),
+  brandPayout: numeric("brand_payout").notNull(),
+  shippingCost: numeric("shipping_cost").default("0"),
+  trackingNumber: text("tracking_number"),
+  trackingUrl: text("tracking_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const brandPaymentAccounts = pgTable("brand_payment_accounts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  brandId: uuid("brand_id").references(() => brands.id).notNull(),
+  provider: text("provider").default("mercadopago"),
+  mpUserId: text("mp_user_id"),
+  mpEmail: text("mp_email"),
+  mpAccessToken: text("mp_access_token"),
+  mpRefreshToken: text("mp_refresh_token"),
+  isVerified: boolean("is_verified").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Zod schemas and types
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true, updatedAt: true });
@@ -190,6 +272,10 @@ export const insertTryonResultSchema = createInsertSchema(tryonResults).omit({ i
 export const insertProductClickSchema = createInsertSchema(productClicks).omit({ id: true, clickedAt: true });
 export const insertCollectionSchema = createInsertSchema(collections).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCollectionItemSchema = createInsertSchema(collectionItems).omit({ id: true, addedAt: true });
+export const insertUserAddressSchema = createInsertSchema(userAddresses).omit({ id: true, createdAt: true });
+export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true, updatedAt: true, paidAt: true });
+export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
+export const insertBrandOrderSchema = createInsertSchema(brandOrders).omit({ id: true, createdAt: true, updatedAt: true });
 
 export type Category = typeof categories.$inferSelect;
 export type Brand = typeof brands.$inferSelect;
@@ -205,5 +291,10 @@ export type TryonResult = typeof tryonResults.$inferSelect;
 export type ProductClick = typeof productClicks.$inferSelect;
 export type Collection = typeof collections.$inferSelect;
 export type CollectionItem = typeof collectionItems.$inferSelect;
+export type UserAddress = typeof userAddresses.$inferSelect;
+export type Order = typeof orders.$inferSelect;
+export type OrderItem = typeof orderItems.$inferSelect;
+export type BrandOrder = typeof brandOrders.$inferSelect;
+export type BrandPaymentAccount = typeof brandPaymentAccounts.$inferSelect;
 
 export * from "./models/chat";

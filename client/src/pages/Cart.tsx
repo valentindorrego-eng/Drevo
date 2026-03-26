@@ -1,7 +1,7 @@
 import { Navigation } from "@/components/Navigation";
 import { Link } from "wouter";
 import { useCart } from "@/context/CartContext";
-import { ShoppingBag, ArrowRight, Trash2, Plus, Minus, ExternalLink } from "lucide-react";
+import { ShoppingBag, ArrowRight, Trash2, Plus, Minus, ExternalLink, CreditCard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { trackClick } from "@/hooks/useClickTracker";
@@ -151,15 +151,12 @@ export default function Cart() {
           <p className="text-xs text-neutral-500">Impuestos y costos de envío se calculan al finalizar la compra.</p>
 
           <div className="space-y-3">
-            {items.some((i) => i.externalUrl) && (
-              <div className="bg-white/5 border border-white/10 rounded-lg p-4 text-sm text-neutral-400">
-                <p className="flex items-center gap-2 mb-2">
-                  <ExternalLink className="w-4 h-4 text-neutral-300" />
-                  <span className="text-neutral-200 font-medium">Compra directa en tiendas oficiales</span>
-                </p>
-                <p>Los productos de marcas conectadas se compran directamente en su tienda online. Hacé click en "Comprar en tienda oficial" en cada producto para completar tu compra.</p>
-              </div>
-            )}
+            <Link href="/checkout">
+              <span className="w-full h-14 bg-[#C8FF00] text-black rounded-xl font-bold text-lg hover:bg-[#A3D600] transition-colors flex items-center justify-center gap-2 cursor-pointer" data-testid="link-checkout">
+                <CreditCard className="w-5 h-5" />
+                Finalizar compra
+              </span>
+            </Link>
 
             <Link href="/search">
               <span className="w-full h-12 border border-white/20 rounded font-medium text-sm text-neutral-300 hover:text-white hover:border-white transition-all flex items-center justify-center gap-2 cursor-pointer" data-testid="link-continue-shopping">
