@@ -239,9 +239,9 @@ export async function registerRoutes(
     if (!clientId) {
       return res.status(500).send("Falta TIENDANUBE_CLIENT_ID en Secrets");
     }
-    // Use env var if set, otherwise build from request host
-    const redirectUri = process.env.TIENDANUBE_REDIRECT_URI ||
-      `${req.protocol}://${req.get("host")}/auth/tiendanube/callback`;
+    const host = req.get("host") || "localhost";
+    const protocol = req.protocol || "https";
+    const redirectUri = `${protocol}://${host}/auth/tiendanube/callback`;
 
     const state = Math.random().toString(36).substring(7);
     const params = new URLSearchParams({ state, redirect_uri: redirectUri });
