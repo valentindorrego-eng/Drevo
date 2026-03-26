@@ -30,6 +30,36 @@ export function useSearchProducts() {
   });
 }
 
+export function useSayMore() {
+  return useMutation({
+    mutationFn: async (data: { productId: string; refinement: string }) => {
+      const res = await fetch("/api/search/say-more", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error("Failed to refine search");
+      return await res.json();
+    },
+  });
+}
+
+export function useVisualSearch() {
+  return useMutation({
+    mutationFn: async (data: { image: File; context?: string }) => {
+      const formData = new FormData();
+      formData.append("image", data.image);
+      if (data.context) formData.append("context", data.context);
+      const res = await fetch("/api/search/visual", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Failed to search by image");
+      return await res.json();
+    },
+  });
+}
+
 export function useProduct(id: string) {
   return useQuery({
     queryKey: [api.products.get.path, id],

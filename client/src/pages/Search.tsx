@@ -4,7 +4,8 @@ import { Navigation } from "@/components/Navigation";
 import { useSearchProducts } from "@/hooks/use-search";
 import { useAuth } from "@/hooks/useAuth";
 import { ProductCard } from "@/components/ProductCard";
-import { Search as SearchIcon, Loader2, Sparkles, ShoppingBag, X, Ruler, Send, MessageSquare, RotateCcw, Clock } from "lucide-react";
+import { Search as SearchIcon, Loader2, Sparkles, ShoppingBag, X, Ruler, Send, MessageSquare, RotateCcw, Clock, Camera } from "lucide-react";
+import { VisualSearchButton } from "@/components/VisualSearchButton";
 import { motion, AnimatePresence } from "framer-motion";
 import { trackClick } from "@/hooks/useClickTracker";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -196,26 +197,29 @@ export default function Search() {
 
           <main className="flex-1 min-w-0">
             <div className="mb-8 lg:hidden">
-              <form onSubmit={handleSubmit} className="relative">
-                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
-                <input 
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
-                  placeholder="Refiná tu búsqueda..."
-                  data-testid="input-search"
-                />
-                {inputValue && (
-                  <button
-                    type="button"
-                    onClick={() => setInputValue("")}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
-                    data-testid="button-clear-search"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
-              </form>
+              <div className="flex gap-2">
+                <form onSubmit={handleSubmit} className="relative flex-1">
+                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                  <input
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
+                    placeholder="Refiná tu búsqueda..."
+                    data-testid="input-search"
+                  />
+                  {inputValue && (
+                    <button
+                      type="button"
+                      onClick={() => setInputValue("")}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+                      data-testid="button-clear-search"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </form>
+                <VisualSearchButton className="!py-4" />
+              </div>
 
               {searchResults?.intent && (
                 <div className="mt-3 flex flex-wrap gap-2 overflow-x-auto pb-2">
@@ -239,25 +243,28 @@ export default function Search() {
             </div>
 
             <div className="hidden lg:block mb-8 max-w-3xl">
-              <form onSubmit={handleSubmit} className="relative">
-                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
-                <input 
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
-                  placeholder="Refiná tu búsqueda..."
-                  data-testid="input-search-desktop"
-                />
-                {inputValue && (
-                  <button
-                    type="button"
-                    onClick={() => setInputValue("")}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
-              </form>
+              <div className="flex gap-2">
+                <form onSubmit={handleSubmit} className="relative flex-1">
+                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                  <input
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
+                    placeholder="Refiná tu búsqueda..."
+                    data-testid="input-search-desktop"
+                  />
+                  {inputValue && (
+                    <button
+                      type="button"
+                      onClick={() => setInputValue("")}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </form>
+                <VisualSearchButton className="!py-4" />
+              </div>
             </div>
 
             {isPending ? (

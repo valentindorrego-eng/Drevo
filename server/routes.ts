@@ -906,9 +906,12 @@ Reply with ONLY valid JSON, no explanation.`
         }
 
         const representedSlots = new Set(bundleItems.map(i => i.slot));
-        const complementSlots = slotDefs.filter(s =>
+        // Only add complement slots (calzado/accesorio) if there are enough brands/products
+        // to make meaningful suggestions. With < 50 products, forced complements feel random.
+        const totalProducts = scoredResults.length;
+        const complementSlots = totalProducts >= 50 ? slotDefs.filter(s =>
           !representedSlots.has(s.label) && ["Calzado", "Accesorio"].includes(s.label)
-        );
+        ) : [];
         const allColors = [...(intent.colors?.primary || []), ...(intent.colors?.secondary || [])];
         for (const slot of complementSlots) {
           const catId = catIdByName.get(slot.name);
@@ -970,93 +973,49 @@ Reply with ONLY valid JSON, no explanation.`
         }
       }
 
+      // --- Improved "Explorar Resultados" filtering ---
+      // Instead of a strict must_include filter that drops good results,
+      // use a relevance threshold: only show products that actually scored well
+      // and match the user's intent (type, color, gender).
       let filteredResults = scoredResults;
+
       if (intent.intent_type === "outfit" && outfitBundles.length > 0) {
         const bundleIds = new Set(outfitBundles[0].items.map((i: any) => i.id));
-        const allIntentColors = [...(intent.colors?.primary || []), ...(intent.colors?.secondary || [])];
-        const mustIncludeTypes = (intent.must_include || []).flatMap((m: string) =>
-          m.toLowerCase().match(/remera|camiseta|camisa|musculosa|polo|top|falda|pollera|bermuda|short|pantalon|pantalón|jean|cargo|jogger|calza|campera|buzo|hoodie|sweater|zapatilla|bota|gorra|mochila|bolso|vestido/g) || []
+
+        // Remove items already in the outfit bundle
+        filteredResults = scoredResults.filter(r => !bundleIds.has(r.id));
+      }
+
+      // Apply a minimum relevance threshold — don't show low-scoring noise
+      const RELEVANCE_THRESHOLD = 0.35;
+      filteredResults = filteredResults.filter(r => r.similarity >= RELEVANCE_THRESHOLD);
+
+      // For outfit queries, prioritize products that match the requested types
+      if (intent.intent_type === "outfit" && intent.must_include?.length > 0) {
+        const requestedTypeRegex = /remera|camiseta|camisa|musculosa|polo|top|falda|pollera|bermuda|short|pantalon|pantalón|jean|cargo|jogger|calza|campera|buzo|hoodie|sweater|zapatilla|bota|gorra|mochila|bolso|vestido|carpenter/gi;
+        const requestedTypes = new Set(
+          (intent.must_include || []).flatMap((m: string) => {
+            const matches = m.toLowerCase().match(requestedTypeRegex) || [];
+            const typeSynonyms: Record<string, string[]> = {
+              remera: ["remera", "camiseta", "tee"], camiseta: ["camiseta", "remera", "tee"],
+              bermuda: ["bermuda", "short"], short: ["short", "bermuda"],
+              pantalon: ["pantalon", "pantalón", "carpenter", "cargo", "jean"],
+              "pantalón": ["pantalón", "pantalon", "carpenter", "cargo", "jean"],
+              carpenter: ["carpenter", "pantalon", "pantalón", "bermuda"],
+            };
+            return matches.flatMap(m => typeSynonyms[m] || [m]);
+          })
         );
-        const typeSynonyms: Record<string, string[]> = {
-          remera: ["remera", "camiseta", "tee"], camiseta: ["camiseta", "remera", "tee"],
-          falda: ["falda", "pollera"], pollera: ["pollera", "falda"],
-          pantalon: ["pantalon", "pantalón", "carpenter", "cargo", "jean"],
-          "pantalón": ["pantalón", "pantalon", "carpenter", "cargo", "jean"],
-          campera: ["campera", "jacket"], zapatilla: ["zapatilla", "sneaker", "sneakers"],
-        };
-        const expandedTypes = Array.from(new Set<string>(mustIncludeTypes.flatMap((t: string) => typeSynonyms[t] || [t])));
 
-        const colorSynonyms: Record<string, string[]> = {
-          negro: ["negro", "negra", "black"], blanca: ["blanca", "blanco", "white"],
-          gris: ["gris", "grey", "gray"], rosa: ["rosa", "pink"],
-          azul: ["azul", "blue"], rojo: ["rojo", "red"], verde: ["verde", "green"],
-          beige: ["beige", "crudo"], marron: ["marron", "marrón", "brown"],
-          celeste: ["celeste"], bordo: ["bordo", "bordó", "burgundy"],
-          lila: ["lila", "purple"], coral: ["coral"], naranja: ["naranja", "orange"],
-          amarillo: ["amarillo", "yellow"], black: ["black", "negro", "negra"],
-          white: ["white", "blanco", "blanca"], grey: ["grey", "gray", "gris"],
-          pink: ["pink", "rosa"], blue: ["blue", "azul"],
-        };
-
-        const mustItemParsed = (intent.must_include || []).map((m: string) => {
-          const mLower = m.toLowerCase();
-          const types = mLower.match(/remera|camiseta|camisa|musculosa|polo|top|falda|pollera|bermuda|short|pantalon|pantalón|jean|cargo|jogger|calza|campera|buzo|hoodie|sweater|zapatilla|bota|gorra|mochila|bolso|vestido|carpenter/g) || [];
-          const foundColors: string[] = [];
-          for (const [, syns] of Object.entries(colorSynonyms)) {
-            if (syns.some(s => mLower.includes(s))) {
-              for (const s of syns) { if (!foundColors.includes(s)) foundColors.push(s); }
-            }
-          }
-          const expandedT = Array.from(new Set<string>(types.flatMap((t: string) => typeSynonyms[t] || [t])));
-          return { types: expandedT, colors: foundColors };
-        });
-
-        const catSlotMap: Record<string, RegExp> = {
-          tops: /remera|camiseta|tee|camisa|top|polo|musculosa|chaleco|vest|crop|body/i,
-          bottoms: /pant|jean|cargo|short|pollera|falda|calza|pantalon|pantalón|chino|jogger|bermuda|carpenter/i,
-          outerwear: /campera|jacket|buzo|hoodie|sweater|abrigo|bomber|anorak/i,
-          footwear: /sneaker|shoe|zapa|bota|boot|sandal|chancla|calzado/i,
-          accessories: /media|medias|sock|gorra|cap|hat|vincha|muñequera|mochila|bolso/i,
-        };
-        const mustItemCategories = mustItemParsed.map((item: { types: string[]; colors: string[] }) => {
-          for (const [cat, regex] of Object.entries(catSlotMap)) {
-            if (item.types.some((t: string) => regex.test(t))) return cat;
-          }
-          return null;
-        });
-        const allCatsForFilter = await db.select().from(categories);
-        const catNameByIdFilter = new Map(allCatsForFilter.map(c => [c.id, c.name.toLowerCase()]));
-
-        filteredResults = scoredResults.filter(r => {
-          if (bundleIds.has(r.id)) return false;
-          const rTags = (r.tags || []).map((t: any) => typeof t === 'string' ? t : t.tag || '').join(' ').toLowerCase();
-          const rGenderMismatch = (() => {
-            if (!intent.gender) return false;
-            const wM = intent.gender === 'men' || intent.gender === 'male' || intent.gender === 'hombre';
-            const wW = intent.gender === 'women' || intent.gender === 'female' || intent.gender === 'mujer';
-            if (wM && /\b(mujer|women|female|dama)\b/.test(rTags) && !/\b(hombre|men|male)\b/.test(rTags)) return true;
-            if (wW && /\b(hombre|men|male)\b/.test(rTags) && !/\b(mujer|women|female|dama)\b/.test(rTags)) return true;
-            return false;
-          })();
-          if (rGenderMismatch) return false;
+        // Boost products that match requested types, penalize those that don't
+        filteredResults = filteredResults.map(r => {
           const rTitle = r.title.toLowerCase();
-          const rCatName = catNameByIdFilter.get(r.categoryId) || "";
-
-          for (let i = 0; i < mustItemParsed.length; i++) {
-            const item = mustItemParsed[i];
-            const itemCat = mustItemCategories[i];
-            const titleMatchesType = item.types.some((t: string) => rTitle.includes(t));
-            const sameCat = itemCat && rCatName === itemCat;
-            if (!titleMatchesType && !sameCat) continue;
-            if (item.colors.length === 0) return true;
-            const titleMatchesColor = item.colors.some((c: string) => {
-              const syns = colorSynonyms[c] || [c];
-              return syns.some(s => rTitle.includes(s));
-            });
-            if (titleMatchesColor) return true;
+          const matchesRequestedType = Array.from(requestedTypes).some(t => rTitle.includes(t));
+          if (matchesRequestedType) {
+            return { ...r, similarity: r.similarity + 0.15 };
           }
-          return false;
-        });
+          return r;
+        }).sort((a, b) => b.similarity - a.similarity);
       }
 
       if (intent.gender) {
@@ -1099,6 +1058,186 @@ Reply with ONLY valid JSON, no explanation.`
     const product = await storage.getProduct(req.params.id);
     if (!product) return res.status(404).json({ message: 'Product not found' });
     res.json(product);
+  });
+
+  // ─── Say More: Contextual product refinement ───
+  // Given a product and a refinement prompt, find similar products with modifications
+  app.post("/api/search/say-more", async (req, res) => {
+    try {
+      const { productId, refinement } = req.body;
+      if (!productId || !refinement) {
+        return res.status(400).json({ message: "productId y refinement son obligatorios" });
+      }
+
+      const product = await storage.getProduct(productId);
+      if (!product) return res.status(404).json({ message: "Producto no encontrado" });
+
+      // Build a contextual search query: "like this product but [refinement]"
+      const productContext = `${product.title} ${product.brand?.name || ""} ${(product.tags || []).map((t: any) => typeof t === 'string' ? t : t.tag).join(" ")}`;
+
+      let searchQuery = refinement;
+      if (openai) {
+        try {
+          const completion = await openai.chat.completions.create({
+            model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: `You are helping refine a fashion search. The user is looking at a product and wants something similar but different. Generate a concise search query (max 20 words) that combines the original product context with the user's refinement request. Reply with ONLY the search query, nothing else.`
+              },
+              {
+                role: "user",
+                content: `Producto actual: ${productContext}\n\nRefinamiento del usuario: "${refinement}"\n\nGenerá un query de búsqueda optimizado.`
+              }
+            ]
+          });
+          searchQuery = completion.choices[0].message?.content?.trim() || refinement;
+        } catch (e) {
+          console.error("Say More AI error:", e);
+          searchQuery = `${product.title} ${refinement}`;
+        }
+      } else {
+        searchQuery = `${product.title} ${refinement}`;
+      }
+
+      // Vector search with the refined query
+      if (!openai) {
+        return res.status(500).json({ message: "OpenAI no configurado" });
+      }
+
+      const embRes = await openai.embeddings.create({
+        model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+        input: searchQuery,
+      });
+      const embStr = `[${embRes.data[0].embedding.join(',')}]`;
+      const matches = await pool.query(
+        `SELECT * FROM match_products($1::vector(1536), $2, 0.15)`,
+        [embStr, 20]
+      );
+      const productIds = matches.rows
+        .map((r: any) => r.product_id)
+        .filter((id: string) => id !== productId); // Exclude the original product
+      const productsData = await storage.getProductsByIds(productIds);
+
+      const results = productsData.map(p => {
+        const sim = matches.rows.find((r: any) => r.product_id === p.id)?.similarity || 0;
+        return {
+          id: p.id,
+          title: p.title,
+          description: p.description,
+          basePrice: Number(p.basePrice),
+          salePrice: p.salePrice ? Number(p.salePrice) : null,
+          currency: p.currency,
+          brand: p.brand ? { name: p.brand.name, slug: p.brand.slug } : null,
+          images: p.images.map((img: any) => ({ url: img.url, position: img.position })),
+          variants: p.variants.map((v: any) => ({ sizeLabel: v.sizeLabel, stockQty: v.stockQty })),
+          tags: p.tags.map((t: any) => typeof t === 'string' ? t : t.tag),
+          similarity: sim,
+        };
+      }).sort((a, b) => b.similarity - a.similarity);
+
+      res.json({
+        originalProduct: { id: product.id, title: product.title },
+        refinement,
+        generatedQuery: searchQuery,
+        results,
+      });
+    } catch (err) {
+      console.error("Say More error:", err);
+      res.status(500).json({ message: "Error interno" });
+    }
+  });
+
+  // ─── Visual Search: Upload image to find similar products ───
+  const visualSearchUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      cb(null, ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype));
+    },
+  });
+
+  app.post("/api/search/visual", visualSearchUpload.single("image"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No se subió ninguna imagen" });
+      }
+      if (!openai) {
+        return res.status(500).json({ message: "OpenAI no configurado" });
+      }
+
+      const additionalContext = req.body.context || "";
+      const base64Image = req.file.buffer.toString("base64");
+      const mimeType = req.file.mimetype;
+
+      // Use GPT-4o Vision to analyze the image and extract fashion description
+      const visionResponse = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are a fashion analysis expert for DREVO, a fashion discovery platform in Argentina/LATAM. Analyze the image and describe the clothing items you see in detail. Include: type of garment, colors, patterns, style, fit, occasion it's suitable for. Output a concise search query (max 30 words) that captures the essence of what's shown, optimized for finding similar products. Reply with ONLY the search query.`
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "low" }
+              },
+              ...(additionalContext ? [{
+                type: "text" as const,
+                text: `Contexto adicional del usuario: "${additionalContext}"`
+              }] : [])
+            ]
+          }
+        ],
+        max_tokens: 150,
+      });
+
+      const imageDescription = visionResponse.choices[0].message?.content?.trim() || "";
+      if (!imageDescription) {
+        return res.status(422).json({ message: "No se pudo analizar la imagen" });
+      }
+
+      // Generate embedding and search
+      const embRes = await openai.embeddings.create({
+        model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+        input: imageDescription,
+      });
+      const embStr = `[${embRes.data[0].embedding.join(',')}]`;
+      const matches = await pool.query(
+        `SELECT * FROM match_products($1::vector(1536), $2, 0.1)`,
+        [embStr, 30]
+      );
+      const productIds = matches.rows.map((r: any) => r.product_id);
+      const productsData = await storage.getProductsByIds(productIds);
+
+      const results = productsData.map(p => {
+        const sim = matches.rows.find((r: any) => r.product_id === p.id)?.similarity || 0;
+        return {
+          id: p.id,
+          title: p.title,
+          description: p.description,
+          basePrice: Number(p.basePrice),
+          salePrice: p.salePrice ? Number(p.salePrice) : null,
+          currency: p.currency,
+          brand: p.brand ? { name: p.brand.name, slug: p.brand.slug } : null,
+          images: p.images.map((img: any) => ({ url: img.url, position: img.position })),
+          variants: p.variants.map((v: any) => ({ sizeLabel: v.sizeLabel, stockQty: v.stockQty })),
+          tags: p.tags.map((t: any) => typeof t === 'string' ? t : t.tag),
+          similarity: sim,
+        };
+      }).sort((a, b) => b.similarity - a.similarity);
+
+      res.json({
+        imageDescription,
+        results,
+      });
+    } catch (err) {
+      console.error("Visual search error:", err);
+      res.status(500).json({ message: "Error interno" });
+    }
   });
 
   const tryonUpload = multer({
@@ -1265,39 +1404,59 @@ Reply with ONLY valid JSON, no explanation.`
       const { Modality } = await import("@google/genai");
       const { ai } = await import("./replit_integrations/image/client");
 
-      const tryonPrompt = `VIRTUAL CLOTHING TRY-ON — STRICT EDITING TASK
+      // Detect garment category from product title for smarter prompt
+      const titleLower = productTitle.toLowerCase();
+      const isBottom = /bermuda|short|pantalon|pantalón|jean|cargo|jogger|calza|falda|pollera/i.test(titleLower);
+      const isOuterwear = /campera|jacket|buzo|hoodie|sweater|abrigo|bomber|anorak/i.test(titleLower);
+      const isFootwear = /zapatilla|sneaker|shoe|bota|boot|sandal/i.test(titleLower);
+      const isDress = /vestido|dress/i.test(titleLower);
 
-TWO IMAGES PROVIDED:
-- IMAGE 1 (first image): The CUSTOMER'S photo. This is YOUR BASE. Everything in this image stays UNTOUCHED except the top garment.
-- IMAGE 2 (second image): A product catalog photo of "${productTitle}". It may show the garment on a different person/model. You must COMPLETELY IGNORE that other person — extract ONLY the garment design (the shirt/top/t-shirt) from Image 2.
+      let garmentZone = "the upper body garment (shirt/top/t-shirt)";
+      let preserveZone = "ALL clothing below the waist (pants, shorts, skirt), ALL footwear, ALL accessories";
+      if (isBottom) {
+        garmentZone = "the lower body garment (pants/shorts/skirt)";
+        preserveZone = "ALL clothing above the waist (shirt, top, jacket), ALL footwear, ALL accessories";
+      } else if (isOuterwear) {
+        garmentZone = "the outerwear layer (jacket/hoodie/sweater)";
+        preserveZone = "the shirt/top underneath (keep it visible at neckline/hem if applicable), ALL clothing below the waist, ALL footwear, ALL accessories";
+      } else if (isFootwear) {
+        garmentZone = "the footwear (shoes/sneakers/boots)";
+        preserveZone = "ALL clothing (top, bottom, outerwear), ALL accessories above the ankles";
+      } else if (isDress) {
+        garmentZone = "the full outfit from shoulders to knees/ankles (dress)";
+        preserveZone = "ALL footwear, ALL accessories (jewelry, bags, hats)";
+      }
 
-TASK: Edit Image 1 by replacing ONLY the shirt/top garment with the garment design from Image 2.
+      const tryonPrompt = `VIRTUAL CLOTHING TRY-ON — PRECISE IMAGE EDITING
 
-WHAT MUST STAY IDENTICAL TO IMAGE 1 (DO NOT CHANGE):
-- The person's face, hair, head, skin tone, body proportions
-- The person's exact pose, arm positions, hand positions
-- ALL clothing below the waist: pants, shorts, skirt — exactly as in Image 1
-- ALL footwear: shoes, sneakers, boots — exactly as in Image 1
-- ALL accessories: watch, bracelet, hat, sunglasses — exactly as in Image 1
-- The entire background, scenery, environment
-- The lighting direction, shadows on the ground
-- The image orientation, aspect ratio, and framing
-- The person's legs, knees, ankles — do NOT borrow any body parts from Image 2
+You are given TWO images:
+- IMAGE 1: The customer's photo. This is your CANVAS — preserve it exactly.
+- IMAGE 2: A product photo of "${productTitle}". Extract ONLY the garment design from this image.
 
-WHAT TO CHANGE (ONLY THIS):
-- Remove the current top/shirt from Image 1
-- Replace it with the garment design from Image 2 (colors, pattern, logo, print)
-- Adapt the garment to fit the person's body shape and pose from Image 1
-- Match the lighting and shadows of Image 1 on the new garment
+YOUR SINGLE TASK: Replace ${garmentZone} in Image 1 with the garment from Image 2.
 
-FORBIDDEN:
-- Do NOT use any body parts, legs, shoes, or clothing from the model in Image 2
-- Do NOT change the person's body shape or proportions
-- Do NOT rotate or crop the image differently than Image 1
-- Do NOT alter the background in any way
-${physicalDesc ? `\nPerson's build: ${physicalDesc}` : ""}
+CRITICAL RULES FOR PRESERVING IMAGE 1:
+1. FACE & HEAD: Keep the exact same face, expression, hair, skin tone. Zero changes.
+2. BODY: Keep the exact same body shape, proportions, pose, arm position, hand position. Do NOT stretch, shrink, or reshape any body part.
+3. PRESERVE: ${preserveZone} — copy them pixel-for-pixel from Image 1.
+4. BACKGROUND: Keep the entire background, environment, floor, walls identical to Image 1.
+5. LIGHTING: Match Image 1's lighting direction, color temperature, and shadow angles on the new garment.
+6. FRAMING: Same exact crop, angle, aspect ratio, and resolution as Image 1.
 
-Output one photorealistic image that looks like Image 1 but with the new top garment.`;
+RULES FOR THE NEW GARMENT (from Image 2):
+1. Copy the exact color, pattern, print, logo, and texture from Image 2.
+2. Warp the garment naturally to match the person's pose and body shape in Image 1.
+3. Add realistic fabric folds and wrinkles consistent with the pose.
+4. Blend edges seamlessly where the garment meets skin or other clothing.
+
+ABSOLUTELY FORBIDDEN:
+- Do NOT copy any body parts, skin, other clothing, or background from Image 2.
+- Do NOT generate a new person or change the person's identity.
+- Do NOT add or remove any body parts.
+- Do NOT change the image dimensions or orientation.
+${physicalDesc ? `\nPerson's physical description: ${physicalDesc}` : ""}
+
+Output: ONE photorealistic image identical to Image 1 except with the new garment.`;
 
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-image",

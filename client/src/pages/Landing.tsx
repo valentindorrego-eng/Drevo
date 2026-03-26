@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowRight, Sparkles, Search, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Navigation } from "@/components/Navigation";
+import { VisualSearchButton } from "@/components/VisualSearchButton";
 
 function getSearchHistory(): string[] {
   try {
@@ -90,6 +91,7 @@ export default function Landing() {
                   className="flex-1 bg-transparent border-none text-white placeholder:text-neutral-600 focus:ring-0 px-4 py-3 text-lg"
                   autoFocus
                 />
+                <VisualSearchButton className="!rounded-md !p-3 !border-0 !bg-white/5" />
                 <button
                   type="submit"
                   className="bg-[#C8FF00] text-black p-3 rounded-md hover:bg-[#A3D600] transition-colors font-medium flex items-center gap-2"
