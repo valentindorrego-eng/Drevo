@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { User, Ruler, Save, LogOut, Camera, Sparkles, Upload } from "lucide-react";
+import { User, Ruler, Save, LogOut, Camera, Sparkles, Upload, Package, ChevronRight } from "lucide-react";
+import { Link } from "wouter";
 
 export default function Profile() {
   const [, setLocation] = useLocation();
@@ -274,6 +275,21 @@ export default function Profile() {
               </Button>
             </div>
           </form>
+
+          <Link href="/orders">
+            <div className="mt-6 border border-white/10 rounded-xl p-5 bg-white/[0.02] hover:border-white/20 transition-colors cursor-pointer flex items-center justify-between group" data-testid="link-my-orders">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-[#C8FF00]/10 rounded-lg flex items-center justify-center">
+                  <Package className="w-5 h-5 text-[#C8FF00]" />
+                </div>
+                <div>
+                  <p className="font-semibold">Mis Compras</p>
+                  <p className="text-xs text-neutral-500">Historial de pedidos y seguimiento</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-neutral-600 group-hover:text-white transition-colors" />
+            </div>
+          </Link>
         </div>
       </div>
     </div>

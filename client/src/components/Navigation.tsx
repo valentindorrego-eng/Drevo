@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Menu, X, Plug, UserCircle, Bookmark, Fingerprint } from "lucide-react";
+import { ShoppingBag, Menu, X, Plug, UserCircle, Bookmark, Fingerprint, Package } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
@@ -24,6 +24,7 @@ export function Navigation() {
     { href: "/", label: "Explorar" },
     { href: "/search", label: "Buscar" },
     ...(isAuthenticated ? [{ href: "/collections", label: "Guardados" }] : []),
+    ...(isAuthenticated ? [{ href: "/orders", label: "Mis Compras" }] : []),
     ...(isAuthenticated ? [{ href: "/style-passport", label: "Style Passport" }] : []),
     { href: "/connect", label: "Conectar tienda" },
     { href: "/cart", label: `Carrito${totalItems > 0 ? ` (${totalItems})` : ""}` },
@@ -63,6 +64,15 @@ export function Navigation() {
             )}>
               <Bookmark className="w-3.5 h-3.5" />
               <span>Guardados</span>
+            </Link>
+          )}
+          {isAuthenticated && (
+            <Link href="/orders" data-testid="link-nav-orders" className={cn(
+              "text-sm font-medium transition-colors hover:text-white flex items-center gap-1.5",
+              location === "/orders" ? "text-white" : "text-neutral-400"
+            )}>
+              <Package className="w-3.5 h-3.5" />
+              <span>Mis Compras</span>
             </Link>
           )}
           {isAuthenticated && (

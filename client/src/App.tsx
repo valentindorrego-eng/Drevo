@@ -17,6 +17,7 @@ import StylePassport from "@/pages/StylePassport";
 import Collections from "@/pages/Collections";
 import Checkout from "@/pages/Checkout";
 import Order from "@/pages/Order";
+import Orders from "@/pages/Orders";
 import NotFound from "@/pages/not-found";
 
 const PageTransition = ({ children }: { children: React.ReactNode }) => (
@@ -46,6 +47,7 @@ function Router() {
           <Route path="/style-passport" component={StylePassport} />
           <Route path="/collections" component={Collections} />
           <Route path="/checkout" component={Checkout} />
+          <Route path="/orders" component={Orders} />
           <Route path="/order/:id" component={Order} />
           <Route component={NotFound} />
         </Switch>
