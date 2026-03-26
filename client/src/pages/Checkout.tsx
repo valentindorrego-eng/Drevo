@@ -139,21 +139,14 @@ export default function Checkout() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Error al crear la orden");
 
-      // If MP is configured, redirect to payment
-      if (data.paymentUrl) {
-        clearCart();
-        window.location.href = data.paymentUrl;
+      sessionStorage.setItem("drevo_pending_order", data.orderId);
+
+      const redirectUrl = data.sandboxUrl || data.paymentUrl;
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
         return;
       }
 
-      // If sandbox URL (testing)
-      if (data.sandboxUrl) {
-        clearCart();
-        window.location.href = data.sandboxUrl;
-        return;
-      }
-
-      // No MP configured — go to order confirmation
       clearCart();
       setLocation(`/order/${data.orderId}?status=success`);
     } catch (err: any) {

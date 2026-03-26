@@ -64,9 +64,19 @@ export default function Order() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Get status from URL params
   const urlParams = new URLSearchParams(window.location.search);
   const paymentStatus = urlParams.get("status");
+
+  useEffect(() => {
+    if (paymentStatus === "success") {
+      const pendingOrder = sessionStorage.getItem("drevo_pending_order");
+      if (pendingOrder) {
+        const cartKeys = Object.keys(localStorage).filter(k => k.startsWith("drevo_cart"));
+        cartKeys.forEach(k => localStorage.removeItem(k));
+        sessionStorage.removeItem("drevo_pending_order");
+      }
+    }
+  }, [paymentStatus]);
 
   useEffect(() => {
     if (!isAuthenticated) {
