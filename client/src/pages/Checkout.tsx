@@ -141,7 +141,7 @@ export default function Checkout() {
 
       sessionStorage.setItem("drevo_pending_order", data.orderId);
 
-      const redirectUrl = data.sandboxUrl || data.paymentUrl;
+      const redirectUrl = data.paymentUrl || data.sandboxUrl;
       if (redirectUrl) {
         window.location.href = redirectUrl;
         return;
