@@ -166,12 +166,12 @@ export function registerCheckoutRoutes(app: express.Express) {
         });
       }
 
-      // Group items by brand and create brand sub-orders
+      // Group items by brand and create brand sub-orders (skip items without a valid brandId)
       const brandGroups = new Map<string, typeof verifiedItems>();
       for (const item of verifiedItems) {
-        const bId = item.brandId || "unknown";
-        if (!brandGroups.has(bId)) brandGroups.set(bId, []);
-        brandGroups.get(bId)!.push(item);
+        if (!item.brandId) continue;
+        if (!brandGroups.has(item.brandId)) brandGroups.set(item.brandId, []);
+        brandGroups.get(item.brandId)!.push(item);
       }
 
       for (const [brandId, brandItems] of Array.from(brandGroups.entries())) {
