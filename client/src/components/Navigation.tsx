@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Menu, X, Plug, UserCircle, Bookmark, Fingerprint, Package, Sun, Moon } from "lucide-react";
+import { ShoppingBag, Menu, X, Plug, UserCircle, Bookmark, Fingerprint, Package, Sun, Moon, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
@@ -28,6 +28,7 @@ export function Navigation() {
     ...(isAuthenticated ? [{ href: "/collections", label: "Guardados" }] : []),
     ...(isAuthenticated ? [{ href: "/orders", label: "Mis Compras" }] : []),
     ...(isAuthenticated ? [{ href: "/style-passport", label: "Style Passport" }] : []),
+    ...(isAuthenticated ? [{ href: "/stylist", label: "Mi Estilista" }] : []),
     { href: "/connect", label: "Conectar tienda" },
     { href: "/cart", label: `Carrito${totalItems > 0 ? ` (${totalItems})` : ""}` },
     { href: isAuthenticated ? "/profile" : "/auth", label: isAuthenticated ? (user?.displayName || "Mi cuenta") : "Entrar" },
@@ -75,6 +76,15 @@ export function Navigation() {
             )}>
               <Package className="w-3.5 h-3.5" />
               <span>Mis Compras</span>
+            </Link>
+          )}
+          {isAuthenticated && (
+            <Link href="/stylist" data-testid="link-nav-stylist" className={cn(
+              "text-sm font-medium transition-colors hover:text-foreground flex items-center gap-1.5",
+              location === "/stylist" ? "text-foreground" : "text-muted-foreground"
+            )}>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Mi Estilista</span>
             </Link>
           )}
           {isAuthenticated && (

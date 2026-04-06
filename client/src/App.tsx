@@ -19,6 +19,7 @@ import Collections from "@/pages/Collections";
 import Checkout from "@/pages/Checkout";
 import Order from "@/pages/Order";
 import Orders from "@/pages/Orders";
+import Stylist from "@/pages/Stylist";
 import NotFound from "@/pages/not-found";
 
 const PageTransition = ({ children }: { children: React.ReactNode }) => (
@@ -50,6 +51,7 @@ function Router() {
           <Route path="/checkout" component={Checkout} />
           <Route path="/orders" component={Orders} />
           <Route path="/order/:id" component={Order} />
+          <Route path="/stylist" component={Stylist} />
           <Route component={NotFound} />
         </Switch>
       </PageTransition>

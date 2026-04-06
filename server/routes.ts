@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { db, pool } from "./db";
 import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings, brandIntegrations, waitlistEntries, type User } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
@@ -1951,6 +1952,146 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
     } catch (error) {
       console.error("Get saved products error:", error);
       res.status(500).json({ message: "Error al obtener guardados" });
+    }
+  });
+
+  // ─── AI Stylist ───
+
+  const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
+
+  app.post("/api/stylist/chat", requireAuth, async (req, res) => {
+    if (!anthropic) {
+      return res.status(503).json({ message: "AI Stylist no disponible (falta ANTHROPIC_API_KEY)" });
+    }
+
+    try {
+      const user = getAuthUser(req);
+      const { messages, imageBase64 } = req.body;
+
+      if (!messages || !Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ message: "Mensajes requeridos" });
+      }
+
+      // Build Style Passport context
+      const fullUser = await storage.getUser(user.id);
+      let styleContext = "";
+      if (fullUser?.stylePassportCompleted) {
+        const vibes = fullUser.styleVibes?.join(", ") || "no definido";
+        const ocasiones = fullUser.ocasionesFrecuentes?.join(", ") || "no definido";
+        const presupuesto = fullUser.presupuestoRango || "no definido";
+        styleContext = `\n\nPERFIL DE ESTILO DEL USUARIO (Style Passport):
+- Vibes/Estilo: ${vibes}
+- Ocasiones frecuentes: ${ocasiones}
+- Rango de presupuesto: ${presupuesto}`;
+      }
+
+      // Search catalog for product recommendations when relevant
+      let catalogContext = "";
+      const lastUserMsg = messages[messages.length - 1];
+      const lastText = typeof lastUserMsg.content === "string" ? lastUserMsg.content : "";
+
+      if (lastText && openai) {
+        try {
+          const embRes = await openai.embeddings.create({
+            model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+            input: lastText,
+          });
+          const embStr = `[${embRes.data[0].embedding.join(',')}]`;
+          const matches = await pool.query(
+            `SELECT * FROM match_products($1::vector(1536), $2, 0.15)`,
+            [embStr, 8]
+          );
+          if (matches.rows.length > 0) {
+            const productIds = matches.rows.map((r: any) => r.product_id);
+            const prods = await storage.getProductsByIds(productIds);
+            const prodList = prods.map(p => {
+              const price = p.salePrice ? `$${p.salePrice}` : (p.price ? `$${p.price}` : "precio no disponible");
+              return `- ${p.title} (${p.brandName || "marca"}) — ${price} [ID: ${p.id}]`;
+            }).join("\n");
+            catalogContext = `\n\nPRODUCTOS RELEVANTES EN CATÁLOGO DREVO (podés recomendar estos):
+${prodList}`;
+          }
+        } catch (e) {
+          console.error("Stylist catalog search error:", e);
+        }
+      }
+
+      const systemPrompt = `Sos el estilista personal de DREVO, un motor de descubrimiento de moda argentino. Tu nombre es DREVO Stylist.
+
+PERSONALIDAD:
+- Sos amigable, directo y con onda. Usás español rioplatense (vos, podés, tenés).
+- Tenés expertise en moda, combinaciones, tendencias y estilo personal.
+- Sos inclusivo y no juzgás los gustos de nadie.
+- Respondés de forma concisa pero completa. No te extendés de más.
+
+CAPACIDADES:
+- Ayudás a armar outfits completos para cualquier ocasión.
+- Analizás fotos de prendas del usuario y sugerís cómo combinarlas.
+- Recomendás productos del catálogo de DREVO cuando son relevantes.
+- Considerás el estilo personal, la ocasión, el clima y el presupuesto.
+
+FORMATO:
+- Cuando recomendás productos del catálogo, mostralos con nombre, marca y precio.
+- Si el usuario manda una foto de su ropa, describí lo que ves y sugerí combinaciones.
+- Usá emojis con moderación para ser amigable pero no exagerar.${styleContext}${catalogContext}`;
+
+      // Build messages for Claude
+      const claudeMessages: Anthropic.MessageParam[] = messages.map((m: any) => {
+        if (m.role === "user" && m.imageBase64) {
+          return {
+            role: "user" as const,
+            content: [
+              { type: "image" as const, source: { type: "base64" as const, media_type: m.imageMediaType || "image/jpeg", data: m.imageBase64 } },
+              { type: "text" as const, text: m.content || "¿Qué me podés decir de estas prendas? ¿Cómo las combino?" }
+            ]
+          };
+        }
+        return { role: m.role as "user" | "assistant", content: m.content };
+      });
+
+      // If current message has an image attachment
+      if (imageBase64 && claudeMessages.length > 0) {
+        const lastIdx = claudeMessages.length - 1;
+        const lastMsg = claudeMessages[lastIdx];
+        if (typeof lastMsg.content === "string") {
+          claudeMessages[lastIdx] = {
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageBase64 } },
+              { type: "text", text: lastMsg.content || "¿Qué me podés decir de estas prendas? ¿Cómo las combino?" }
+            ]
+          };
+        }
+      }
+
+      // Stream response
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const stream = anthropic.messages.stream({
+        model: process.env.ANTHROPIC_STYLIST_MODEL || "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: claudeMessages,
+      });
+
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
+        }
+      }
+
+      res.write(`data: [DONE]\n\n`);
+      res.end();
+    } catch (error: any) {
+      console.error("Stylist error:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Error del estilista AI" });
+      } else {
+        res.write(`data: ${JSON.stringify({ error: "Error del estilista" })}\n\n`);
+        res.end();
+      }
     }
   });
 
