@@ -64,7 +64,10 @@ export async function registerRoutes(
       const passwordHash = await bcrypt.hash(password, 10);
       const user = await storage.createUser({ email, passwordHash, displayName: displayName || null });
       req.login(user, { keepSessionInfo: true }, (err) => {
-        if (err) return res.status(500).json({ message: "Error al iniciar sesión" });
+        if (err) {
+          console.error("Register req.login error:", err);
+          return res.status(500).json({ message: "Error al iniciar sesión", debug: String(err) });
+        }
         const { passwordHash: _, ...safeUser } = user;
         return res.json(safeUser);
       });
@@ -76,10 +79,16 @@ export async function registerRoutes(
 
   app.post("/api/auth/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
-      if (err) return res.status(500).json({ message: "Error interno" });
+      if (err) {
+        console.error("Login authenticate error:", err);
+        return res.status(500).json({ message: "Error interno", debug: String(err) });
+      }
       if (!user) return res.status(401).json({ message: info?.message || "Credenciales inválidas" });
       req.login(user, { keepSessionInfo: true }, (loginErr) => {
-        if (loginErr) return res.status(500).json({ message: "Error al iniciar sesión" });
+        if (loginErr) {
+          console.error("Login req.login error:", loginErr);
+          return res.status(500).json({ message: "Error al iniciar sesión", debug: String(loginErr) });
+        }
         const { passwordHash: _, ...safeUser } = user;
         return res.json(safeUser);
       });
