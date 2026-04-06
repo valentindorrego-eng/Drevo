@@ -21,7 +21,7 @@ interface OrderSummary {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: any }> = {
   pending: { label: "Pendiente", color: "text-yellow-400", bgColor: "bg-yellow-400/10", icon: Clock },
-  paid: { label: "Pagado", color: "text-[#C8FF00]", bgColor: "bg-[#C8FF00]/10", icon: CheckCircle },
+  paid: { label: "Pagado", color: "text-accent", bgColor: "bg-foreground", icon: CheckCircle },
   processing: { label: "En proceso", color: "text-blue-400", bgColor: "bg-blue-400/10", icon: Package },
   shipped: { label: "Enviado", color: "text-purple-400", bgColor: "bg-purple-400/10", icon: Truck },
   delivered: { label: "Entregado", color: "text-green-400", bgColor: "bg-green-400/10", icon: CheckCircle },
@@ -61,7 +61,7 @@ export default function Orders() {
       <div className="min-h-screen bg-background text-foreground">
         <Navigation />
         <div className="pt-32 flex justify-center">
-          <Loader2 className="w-8 h-8 text-[#C8FF00] animate-spin" />
+          <Loader2 className="w-8 h-8 text-accent animate-spin" />
         </div>
       </div>
     );

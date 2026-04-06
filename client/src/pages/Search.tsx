@@ -208,7 +208,7 @@ export default function Search() {
                   ) : (
                     <button
                       type="submit"
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#C8FF00]"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-accent"
                     >
                       <Send className="w-5 h-5" />
                     </button>
@@ -261,7 +261,7 @@ export default function Search() {
                   ) : (
                     <button
                       type="submit"
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[#C8FF00]"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-accent"
                     >
                       <Send className="w-5 h-5" />
                     </button>
@@ -273,7 +273,7 @@ export default function Search() {
 
             {isPending ? (
               <div className="flex flex-col items-center justify-center py-32 space-y-6">
-                <Loader2 className="w-10 h-10 text-[#C8FF00] animate-spin" />
+                <Loader2 className="w-10 h-10 text-accent animate-spin" />
                 <p className="text-muted-foreground animate-pulse font-display">Curando selección...</p>
               </div>
             ) : displayResults ? (
@@ -286,12 +286,12 @@ export default function Search() {
                     className="bg-card border border-border p-8 rounded-2xl relative overflow-hidden"
                   >
                     <div className="absolute top-0 right-0 p-8 opacity-10">
-                      <Sparkles className="w-32 h-32 text-[#C8FF00]" />
+                      <Sparkles className="w-32 h-32 text-accent" />
                     </div>
 
                     <div className="flex items-center gap-3 mb-8 relative z-10">
-                      <div className="bg-[#C8FF00]/10 p-2 rounded-lg">
-                        <Sparkles className="w-6 h-6 text-[#C8FF00]" />
+                      <div className="bg-accent/10 p-2 rounded-lg">
+                        <Sparkles className="w-6 h-6 text-accent" />
                       </div>
                       <h2 className="text-3xl font-display font-bold tracking-tight">Outfit recomendado por Drevo</h2>
                     </div>
@@ -301,7 +301,7 @@ export default function Search() {
                         const label = item.slot || ['Superior', 'Inferior', 'Calzado', 'Accesorio'][idx] || 'Accesorio';
                         return (
                           <div key={item.id} className="relative group">
-                            <div className="absolute -top-3 left-4 z-10 bg-[#C8FF00] text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl">
+                            <div className="absolute -top-3 left-4 z-10 bg-accent text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl">
                               {label}
                             </div>
                             <ProductCard product={item} />
@@ -313,7 +313,7 @@ export default function Search() {
                     <div className="mt-12 flex justify-center relative z-10">
                       <button
                         onClick={() => handleBuyOutfit(displayResults.outfit_bundles![0].items)}
-                        className="flex items-center gap-3 bg-[#C8FF00] text-black px-10 py-4 rounded-full font-bold hover:bg-[#A3D600] transition-all hover:scale-105 active:scale-95 shadow-2xl"
+                        className="flex items-center gap-3 bg-accent text-black px-10 py-4 rounded-full font-bold hover:bg-accent/80 transition-all hover:scale-105 active:scale-95 shadow-2xl"
                         data-testid="button-buy-outfit"
                       >
                         <ShoppingBag className="w-5 h-5" />
@@ -379,7 +379,7 @@ export default function Search() {
                         >
                           <Clock className="w-4 h-4 text-muted-foreground group-hover:text-muted-foreground flex-shrink-0" />
                           <span className="text-neutral-300 group-hover:text-foreground text-sm truncate">{q}</span>
-                          <Send className="w-3 h-3 text-muted-foreground group-hover:text-[#C8FF00] ml-auto flex-shrink-0" />
+                          <Send className="w-3 h-3 text-muted-foreground group-hover:text-accent ml-auto flex-shrink-0" />
                         </button>
                       ))}
                     </div>
@@ -395,7 +395,7 @@ export default function Search() {
             <Sheet open={mobileRefineOpen} onOpenChange={setMobileRefineOpen}>
               <SheetTrigger asChild>
                 <button
-                  className="w-14 h-14 bg-[#C8FF00] text-black rounded-full shadow-2xl flex items-center justify-center hover:bg-[#A3D600] transition-all active:scale-95"
+                  className="w-14 h-14 bg-accent text-black rounded-full shadow-2xl flex items-center justify-center hover:bg-accent/80 transition-all active:scale-95"
                   data-testid="button-mobile-refine"
                 >
                   <MessageSquare className="w-6 h-6" />
@@ -458,11 +458,11 @@ function RefinementPanelContent({
       {displayResults?.intent && (
         <div>
           <h3 className="text-sm font-semibold text-muted-foreground mb-2 uppercase tracking-wider flex items-center gap-2">
-            <Sparkles className="w-3 h-3 text-[#C8FF00]" /> Filtros detectados
+            <Sparkles className="w-3 h-3 text-accent" /> Filtros detectados
           </h3>
           <div className="flex flex-wrap gap-2">
             {displayResults.intent.intent_type && (
-              <span className="text-xs px-2 py-1 bg-[#C8FF00]/10 text-[#C8FF00] rounded-full border border-[#C8FF00]/20">
+              <span className="text-xs px-2 py-1 bg-foreground text-accent rounded-full border border-accent/20">
                 {displayResults.intent.intent_type === "outfit" ? "Outfit" : "Prenda"}
               </span>
             )}
@@ -487,7 +487,7 @@ function RefinementPanelContent({
               onClick={onToggleSizeFilter}
               className={`mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                 sizeFilterEnabled
-                  ? "bg-[#C8FF00]/15 text-[#C8FF00] border border-[#C8FF00]/30"
+                  ? "bg-foreground text-accent border border-accent/30"
                   : "bg-card text-muted-foreground border border-border"
               }`}
               data-testid="button-toggle-size-filter"
@@ -518,13 +518,13 @@ function RefinementPanelContent({
           value={refinementInput}
           onChange={(e) => onRefinementInputChange(e.target.value)}
           placeholder="Refinar búsqueda..."
-          className="flex-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+          className="flex-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
           data-testid="input-refine-search"
         />
         <button
           type="submit"
           disabled={!refinementInput.trim()}
-          className="p-2 bg-[#C8FF00] text-black rounded-lg hover:bg-[#A3D600] transition-colors disabled:opacity-30"
+          className="p-2 bg-accent text-black rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-30"
           data-testid="button-refine-submit"
         >
           <Send className="w-4 h-4" />
@@ -627,7 +627,7 @@ function RefinementPanelContent({
 
             {isPending ? (
               <div className="flex flex-col items-center justify-center py-32 space-y-6">
-                <Loader2 className="w-10 h-10 text-[#C8FF00] animate-spin" />
+                <Loader2 className="w-10 h-10 text-accent animate-spin" />
                 <p className="text-muted-foreground animate-pulse font-display">Curando selección...</p>
                 <p className="text-muted-foreground text-sm">Analizando tu búsqueda con IA</p>
               </div>
@@ -641,12 +641,12 @@ function RefinementPanelContent({
                     className="bg-card border border-border p-8 rounded-2xl relative overflow-hidden"
                   >
                     <div className="absolute top-0 right-0 p-8 opacity-10">
-                      <Sparkles className="w-32 h-32 text-[#C8FF00]" />
+                      <Sparkles className="w-32 h-32 text-accent" />
                     </div>
 
                     <div className="flex items-center gap-3 mb-8 relative z-10">
-                      <div className="bg-[#C8FF00]/10 p-2 rounded-lg">
-                        <Sparkles className="w-6 h-6 text-[#C8FF00]" />
+                      <div className="bg-accent/10 p-2 rounded-lg">
+                        <Sparkles className="w-6 h-6 text-accent" />
                       </div>
                       <h2 className="text-3xl font-display font-bold tracking-tight">Outfit recomendado por Drevo</h2>
                     </div>
@@ -656,7 +656,7 @@ function RefinementPanelContent({
                         const label = item.slot || ['Superior', 'Inferior', 'Calzado', 'Accesorio'][idx] || 'Accesorio';
                         return (
                           <div key={item.id} className="relative group">
-                            <div className="absolute -top-3 left-4 z-10 bg-[#C8FF00] text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl">
+                            <div className="absolute -top-3 left-4 z-10 bg-accent text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest shadow-xl">
                               {label}
                             </div>
                             <ProductCard product={item} />
@@ -668,7 +668,7 @@ function RefinementPanelContent({
                     <div className="mt-12 flex justify-center relative z-10">
                       <button
                         onClick={() => handleBuyOutfit(searchResults.outfit_bundles![0].items)}
-                        className="flex items-center gap-3 bg-[#C8FF00] text-black px-10 py-4 rounded-full font-bold hover:bg-[#A3D600] transition-all hover:scale-105 active:scale-95 shadow-2xl"
+                        className="flex items-center gap-3 bg-accent text-black px-10 py-4 rounded-full font-bold hover:bg-accent/80 transition-all hover:scale-105 active:scale-95 shadow-2xl"
                         data-testid="button-buy-outfit"
                       >
                         <ShoppingBag className="w-5 h-5" />
@@ -770,7 +770,7 @@ function RefinementPanelContent({
           <Sheet open={mobileRefineOpen} onOpenChange={setMobileRefineOpen}>
             <SheetTrigger asChild>
               <button
-                className="w-14 h-14 bg-[#C8FF00] text-black rounded-full shadow-2xl flex items-center justify-center hover:bg-[#A3D600] transition-all active:scale-95"
+                className="w-14 h-14 bg-accent text-black rounded-full shadow-2xl flex items-center justify-center hover:bg-accent/80 transition-all active:scale-95"
                 data-testid="button-mobile-refine"
               >
                 <MessageSquare className="w-6 h-6" />

@@ -39,7 +39,7 @@ interface OrderData {
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: any }> = {
   pending: { label: "Pendiente", color: "text-yellow-400", icon: Clock },
-  paid: { label: "Pagado", color: "text-[#C8FF00]", icon: CheckCircle },
+  paid: { label: "Pagado", color: "text-green-500", icon: CheckCircle },
   processing: { label: "En proceso", color: "text-blue-400", icon: Package },
   shipped: { label: "Enviado", color: "text-purple-400", icon: Truck },
   delivered: { label: "Entregado", color: "text-green-400", icon: CheckCircle },
@@ -50,7 +50,7 @@ const BRAND_STATUS_MAP: Record<string, { label: string; color: string }> = {
   pending: { label: "Preparando", color: "text-yellow-400" },
   created: { label: "Orden enviada a la marca", color: "text-blue-400" },
   packed: { label: "Empaquetado", color: "text-purple-400" },
-  shipped: { label: "Enviado", color: "text-[#C8FF00]" },
+  shipped: { label: "Enviado", color: "text-purple-400" },
   delivered: { label: "Entregado", color: "text-green-400" },
   cancelled: { label: "Cancelado", color: "text-red-400" },
 };
@@ -107,7 +107,7 @@ export default function Order() {
       <div className="min-h-screen bg-background text-foreground">
         <Navigation />
         <div className="pt-32 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 text-[#C8FF00] animate-spin" />
+          <Loader2 className="w-8 h-8 text-accent animate-spin" />
         </div>
       </div>
     );
@@ -121,7 +121,7 @@ export default function Order() {
           <XCircle className="w-12 h-12 text-red-400 mx-auto" />
           <p className="text-lg">No se encontró la orden</p>
           <Link href="/search">
-            <span className="text-[#C8FF00] hover:underline cursor-pointer">Volver a explorar</span>
+            <span className="text-foreground underline font-medium cursor-pointer">Volver a explorar</span>
           </Link>
         </div>
       </div>
@@ -144,8 +144,8 @@ export default function Order() {
         >
           {paymentStatus === "success" || order.paymentStatus === "approved" ? (
             <>
-              <div className="w-16 h-16 bg-[#C8FF00]/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-[#C8FF00]" />
+              <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-8 h-8 text-accent" />
               </div>
               <h1 className="text-3xl font-display font-bold">Pedido confirmado</h1>
               <p className="text-muted-foreground mt-2">Gracias por tu compra en DREVO</p>
@@ -205,9 +205,9 @@ export default function Order() {
                   <p className="text-sm text-muted-foreground">Subtotal: {formatPrice(bo.subtotal)}</p>
                   {bo.trackingNumber && (
                     <div className="mt-2 flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-[#C8FF00]" />
+                      <Truck className="w-4 h-4 text-accent" />
                       {bo.trackingUrl ? (
-                        <a href={bo.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-[#C8FF00] hover:underline">
+                        <a href={bo.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-foreground underline font-medium">
                           Seguir envío: {bo.trackingNumber}
                         </a>
                       ) : (
@@ -257,7 +257,7 @@ export default function Order() {
           {/* Actions */}
           <div className="flex gap-3">
             <Link href="/search" className="flex-1">
-              <span className="w-full py-3 bg-[#C8FF00] text-black font-bold rounded-xl hover:bg-[#A3D600] transition-colors flex items-center justify-center gap-2 cursor-pointer">
+              <span className="w-full py-3 bg-accent text-black font-bold rounded-xl hover:bg-accent/80 transition-colors flex items-center justify-center gap-2 cursor-pointer">
                 Seguir comprando <ChevronRight className="w-4 h-4" />
               </span>
             </Link>

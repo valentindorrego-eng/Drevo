@@ -2,9 +2,20 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Navigation } from "@/components/Navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
-import { Send, ImagePlus, X, Sparkles, Loader2 } from "lucide-react";
+import { Send, ImagePlus, X, Sparkles, Loader2, ExternalLink, RotateCcw } from "lucide-react";
+import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+
+interface StylistProduct {
+  id: string;
+  title: string;
+  price: string | null;
+  salePrice: string | null;
+  brandName: string | null;
+  imageUrl: string | null;
+  externalUrl: string | null;
+}
 
 interface Message {
   id: string;
@@ -13,6 +24,7 @@ interface Message {
   imagePreview?: string;
   imageBase64?: string;
   imageMediaType?: string;
+  products?: StylistProduct[];
 }
 
 const SUGGESTIONS = [
@@ -22,10 +34,64 @@ const SUGGESTIONS = [
   "¿Cómo combino esta prenda?",
 ];
 
+function ProductCard({ product }: { product: StylistProduct }) {
+  return (
+    <Link href={`/product/${product.id}`} className="flex items-center gap-3 p-2 rounded-xl bg-background/50 border border-border/50 hover:border-accent/30 transition-colors cursor-pointer no-underline">
+      {product.imageUrl ? (
+        <img src={product.imageUrl} alt={product.title} className="w-14 h-14 rounded-lg object-cover shrink-0" />
+      ) : (
+        <div className="w-14 h-14 rounded-lg bg-muted-foreground/10 shrink-0" />
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-foreground truncate">{product.title}</p>
+        <p className="text-[10px] text-muted-foreground">{product.brandName || "DREVO"}</p>
+        <p className="text-xs font-bold text-accent">
+          {product.salePrice ? `$${product.salePrice}` : product.price ? `$${product.price}` : ""}
+        </p>
+      </div>
+      <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+    </Link>
+  );
+}
+
+function MessageContent({ content, products }: { content: string; products?: StylistProduct[] }) {
+  const productMap = new Map(products?.map(p => [p.id, p]) || []);
+
+  // Split content by [PRODUCT:id] markers
+  const parts = content.split(/\[PRODUCT:([^\]]+)\]/g);
+
+  return (
+    <>
+      {parts.map((part, i) => {
+        // Odd indices are product IDs from the regex capture group
+        if (i % 2 === 1) {
+          const product = productMap.get(part);
+          if (product) {
+            return <ProductCard key={`prod-${i}`} product={product} />;
+          }
+          return null; // Unknown product ID, just skip the marker
+        }
+        // Even indices are text content
+        return part ? <span key={`text-${i}`}>{part}</span> : null;
+      })}
+    </>
+  );
+}
+
 export default function Stylist() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = localStorage.getItem("drevo-stylist-chat");
+      if (saved) {
+        const parsed = JSON.parse(saved) as Message[];
+        // Remove imageBase64 from loaded messages to save memory (previews are kept)
+        return parsed.map(m => ({ ...m, imageBase64: undefined }));
+      }
+    } catch {}
+    return [];
+  });
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [pendingImage, setPendingImage] = useState<{ base64: string; preview: string; mediaType: string } | null>(null);
@@ -38,6 +104,14 @@ export default function Stylist() {
       setLocation("/auth");
     }
   }, [authLoading, isAuthenticated, setLocation]);
+
+  // Persist messages to localStorage (exclude base64 images to save space)
+  useEffect(() => {
+    if (messages.length > 0) {
+      const toSave = messages.map(m => ({ ...m, imageBase64: undefined }));
+      localStorage.setItem("drevo-stylist-chat", JSON.stringify(toSave));
+    }
+  }, [messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -107,6 +181,7 @@ export default function Stylist() {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
+      let streamProducts: StylistProduct[] = [];
 
       if (reader) {
         while (true) {
@@ -120,10 +195,16 @@ export default function Stylist() {
               if (data === "[DONE]") break;
               try {
                 const parsed = JSON.parse(data);
+                if (parsed.products) {
+                  streamProducts = parsed.products;
+                  setMessages(prev =>
+                    prev.map(m => m.id === assistantId ? { ...m, products: streamProducts } : m)
+                  );
+                }
                 if (parsed.text) {
                   fullText += parsed.text;
                   setMessages(prev =>
-                    prev.map(m => m.id === assistantId ? { ...m, content: fullText } : m)
+                    prev.map(m => m.id === assistantId ? { ...m, content: fullText, products: streamProducts } : m)
                   );
                 }
                 if (parsed.error) {
@@ -159,6 +240,18 @@ export default function Stylist() {
     <div className="min-h-screen bg-background flex flex-col">
       <Navigation />
       <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full pt-20 pb-4 px-4">
+        {/* New chat button when there are messages */}
+        {messages.length > 0 && (
+          <div className="flex justify-end py-2">
+            <button
+              onClick={() => { setMessages([]); localStorage.removeItem("drevo-stylist-chat"); }}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-full border border-border hover:border-foreground/30"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Nuevo chat
+            </button>
+          </div>
+        )}
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto space-y-4 pb-4">
           {messages.length === 0 && (
@@ -167,8 +260,8 @@ export default function Stylist() {
               animate={{ opacity: 1, y: 0 }}
               className="flex flex-col items-center justify-center h-full min-h-[60vh] text-center"
             >
-              <div className="w-16 h-16 rounded-2xl bg-[#C8FF00]/10 flex items-center justify-center mb-6">
-                <Sparkles className="w-8 h-8 text-[#C8FF00]" />
+              <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mb-6">
+                <Sparkles className="w-8 h-8 text-accent" />
               </div>
               <h1 className="text-2xl font-display font-bold text-foreground mb-2">
                 Tu Estilista Personal
@@ -205,7 +298,7 @@ export default function Stylist() {
                   className={cn(
                     "max-w-[85%] rounded-2xl px-4 py-3",
                     msg.role === "user"
-                      ? "bg-[#C8FF00] text-black rounded-br-md"
+                      ? "bg-accent text-black rounded-br-md"
                       : "bg-card border border-border text-foreground rounded-bl-md"
                   )}
                 >
@@ -216,10 +309,14 @@ export default function Stylist() {
                       className="max-w-[200px] rounded-lg mb-2"
                     />
                   )}
-                  <div className="text-sm whitespace-pre-wrap leading-relaxed">
-                    {msg.content}
+                  <div className="text-sm whitespace-pre-wrap leading-relaxed space-y-2">
+                    {msg.role === "assistant" && msg.products?.length ? (
+                      <MessageContent content={msg.content} products={msg.products} />
+                    ) : (
+                      msg.content
+                    )}
                     {msg.role === "assistant" && isStreaming && messages[messages.length - 1]?.id === msg.id && (
-                      <span className="inline-block w-1.5 h-4 bg-[#C8FF00] ml-0.5 animate-pulse" />
+                      <span className="inline-block w-1.5 h-4 bg-accent ml-0.5 animate-pulse" />
                     )}
                   </div>
                 </div>
@@ -274,7 +371,7 @@ export default function Stylist() {
                 "p-2 rounded-xl transition-colors shrink-0",
                 isStreaming || (!input.trim() && !pendingImage)
                   ? "text-muted-foreground"
-                  : "bg-[#C8FF00] text-black hover:bg-[#C8FF00]/80"
+                  : "bg-accent text-black hover:bg-accent/80"
               )}
             >
               {isStreaming ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}

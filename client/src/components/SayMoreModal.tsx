@@ -88,7 +88,7 @@ export function SayMoreModal({ product, isOpen, onClose }: SayMoreModalProps) {
               {!results && !isPending && (
                 <>
                   <p className="text-sm text-neutral-400 mb-4">
-                    <Sparkles className="w-4 h-4 inline text-[#C8FF00] mr-1" />
+                    <Sparkles className="w-4 h-4 inline text-accent mr-1" />
                     ¿Qué cambiarías de este producto?
                   </p>
 
@@ -98,7 +98,7 @@ export function SayMoreModal({ product, isOpen, onClose }: SayMoreModalProps) {
                       <button
                         key={ref}
                         onClick={() => handleSubmit(ref)}
-                        className="text-xs px-3 py-1.5 bg-white/5 border border-white/10 rounded-full text-neutral-300 hover:bg-[#C8FF00]/10 hover:text-[#C8FF00] hover:border-[#C8FF00]/20 transition-all"
+                        className="text-xs px-3 py-1.5 bg-white/5 border border-white/10 rounded-full text-neutral-300 hover:bg-accent/10 hover:text-accent hover:border-accent/20 transition-all"
                       >
                         {ref}
                       </button>
@@ -109,7 +109,7 @@ export function SayMoreModal({ product, isOpen, onClose }: SayMoreModalProps) {
 
               {isPending && (
                 <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                  <Loader2 className="w-8 h-8 text-[#C8FF00] animate-spin" />
+                  <Loader2 className="w-8 h-8 text-accent animate-spin" />
                   <p className="text-neutral-500 text-sm animate-pulse">Buscando alternativas...</p>
                 </div>
               )}
@@ -141,12 +141,12 @@ export function SayMoreModal({ product, isOpen, onClose }: SayMoreModalProps) {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Como este pero..."
-                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-accent/30"
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || isPending}
-                  className="px-4 py-3 bg-[#C8FF00] text-black rounded-xl font-medium hover:bg-[#A3D600] transition-colors disabled:opacity-30"
+                  className="px-4 py-3 bg-accent text-black rounded-xl font-medium hover:bg-accent/80 transition-colors disabled:opacity-30"
                 >
                   <Send className="w-4 h-4" />
                 </button>

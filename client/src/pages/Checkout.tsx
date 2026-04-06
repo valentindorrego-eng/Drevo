@@ -177,7 +177,7 @@ export default function Checkout() {
               <div key={s.key} className="flex items-center gap-2">
                 {i > 0 && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all ${
-                  isActive ? "bg-[#C8FF00]/10 text-[#C8FF00] border border-[#C8FF00]/30" :
+                  isActive ? "bg-foreground text-accent border border-accent/30" :
                   isPast ? "bg-card text-foreground border border-border" :
                   "text-muted-foreground border border-transparent"
                 }`}>
@@ -197,7 +197,7 @@ export default function Checkout() {
             {step === "address" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <h2 className="text-xl font-display font-bold mb-6 flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-[#C8FF00]" />
+                  <MapPin className="w-5 h-5 text-accent" />
                   Dirección de envío
                 </h2>
 
@@ -209,7 +209,7 @@ export default function Checkout() {
                         onClick={() => setSelectedAddressId(addr.id)}
                         className={`w-full text-left p-4 rounded-lg border transition-all ${
                           selectedAddressId === addr.id
-                            ? "border-[#C8FF00]/30 bg-[#C8FF00]/5"
+                            ? "border-accent/30 bg-accent/5"
                             : "border-border bg-card hover:border-border"
                         }`}
                       >
@@ -240,7 +240,7 @@ export default function Checkout() {
                         <input
                           value={form.fullName}
                           onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
-                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                         />
                       </div>
                       <div>
@@ -248,7 +248,7 @@ export default function Checkout() {
                         <input
                           value={form.street}
                           onChange={e => setForm(f => ({ ...f, street: e.target.value }))}
-                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -257,7 +257,7 @@ export default function Checkout() {
                           <input
                             value={form.streetNumber}
                             onChange={e => setForm(f => ({ ...f, streetNumber: e.target.value }))}
-                            className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                            className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                           />
                         </div>
                         <div>
@@ -265,7 +265,7 @@ export default function Checkout() {
                           <input
                             value={form.floor}
                             onChange={e => setForm(f => ({ ...f, floor: e.target.value }))}
-                            className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                            className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                           />
                         </div>
                       </div>
@@ -274,7 +274,7 @@ export default function Checkout() {
                         <input
                           value={form.city}
                           onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                         />
                       </div>
                       <div>
@@ -282,7 +282,7 @@ export default function Checkout() {
                         <select
                           value={form.province}
                           onChange={e => setForm(f => ({ ...f, province: e.target.value }))}
-                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                         >
                           <option value="">Seleccionar...</option>
                           {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
@@ -293,7 +293,7 @@ export default function Checkout() {
                         <input
                           value={form.postalCode}
                           onChange={e => setForm(f => ({ ...f, postalCode: e.target.value }))}
-                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                         />
                       </div>
                       <div>
@@ -302,7 +302,7 @@ export default function Checkout() {
                           value={form.phone}
                           onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                           placeholder="+54 9 ..."
-                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                         />
                       </div>
                     </div>
@@ -313,7 +313,7 @@ export default function Checkout() {
                       <button
                         onClick={handleSaveAddress}
                         disabled={isLoading}
-                        className="flex-1 py-3 bg-[#C8FF00] text-black font-bold rounded-lg hover:bg-[#A3D600] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-1 py-3 bg-accent text-black font-bold rounded-lg hover:bg-accent/80 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                         Guardar dirección
@@ -333,7 +333,7 @@ export default function Checkout() {
                 {selectedAddressId && !showAddressForm && (
                   <button
                     onClick={() => { setStep("review"); setError(""); }}
-                    className="w-full py-4 bg-[#C8FF00] text-black font-bold rounded-xl hover:bg-[#A3D600] transition-colors flex items-center justify-center gap-2 text-lg mt-4"
+                    className="w-full py-4 bg-accent text-black font-bold rounded-xl hover:bg-accent/80 transition-colors flex items-center justify-center gap-2 text-lg mt-4"
                   >
                     Continuar <ChevronRight className="w-5 h-5" />
                   </button>
@@ -345,7 +345,7 @@ export default function Checkout() {
             {step === "review" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <h2 className="text-xl font-display font-bold mb-6 flex items-center gap-2">
-                  <ShoppingBag className="w-5 h-5 text-[#C8FF00]" />
+                  <ShoppingBag className="w-5 h-5 text-accent" />
                   Revisá tu pedido
                 </h2>
 
@@ -383,7 +383,7 @@ export default function Checkout() {
                       <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                         <MapPin className="w-4 h-4" /> Dirección de envío
                       </p>
-                      <button onClick={() => setStep("address")} className="text-xs text-[#C8FF00] hover:underline">
+                      <button onClick={() => setStep("address")} className="text-xs text-foreground underline font-medium">
                         Cambiar
                       </button>
                     </div>
@@ -412,7 +412,7 @@ export default function Checkout() {
                   </button>
                   <button
                     onClick={handleCheckout}
-                    className="flex-1 py-4 bg-[#C8FF00] text-black font-bold rounded-xl hover:bg-[#A3D600] transition-colors flex items-center justify-center gap-2 text-lg"
+                    className="flex-1 py-4 bg-accent text-black font-bold rounded-xl hover:bg-accent/80 transition-colors flex items-center justify-center gap-2 text-lg"
                   >
                     <CreditCard className="w-5 h-5" />
                     Pagar {formatPrice(totalPrice)}
@@ -429,7 +429,7 @@ export default function Checkout() {
             {/* Step: Processing */}
             {step === "processing" && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16 space-y-6">
-                <Loader2 className="w-12 h-12 text-[#C8FF00] animate-spin mx-auto" />
+                <Loader2 className="w-12 h-12 text-accent animate-spin mx-auto" />
                 <div>
                   <p className="text-xl font-display font-bold">Procesando tu pedido...</p>
                   <p className="text-sm text-muted-foreground mt-2">Te redirigiremos a MercadoPago para completar el pago</p>

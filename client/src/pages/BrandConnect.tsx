@@ -56,7 +56,7 @@ export default function BrandConnect() {
           className="space-y-10"
         >
           <div className="space-y-2">
-            <p className="text-xs font-medium tracking-widest uppercase text-[#C8FF00]">
+            <p className="text-xs font-medium tracking-widest uppercase text-accent bg-foreground inline-block px-2 py-0.5 rounded">
               Integraciones
             </p>
             <h1 className="text-4xl font-display font-bold tracking-tight">
@@ -71,10 +71,10 @@ export default function BrandConnect() {
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 bg-[#C8FF00]/10 border border-[#C8FF00]/30 rounded-xl px-4 py-3"
+              className="flex items-center gap-3 bg-foreground border border-accent/30 rounded-xl px-4 py-3"
             >
-              <CheckCircle2 className="w-5 h-5 text-[#C8FF00] shrink-0" />
-              <span className="text-sm text-[#C8FF00]">
+              <CheckCircle2 className="w-5 h-5 text-accent shrink-0" />
+              <span className="text-sm text-accent">
                 ¡Tienda {connectedStoreId ? `(ID: ${connectedStoreId})` : ""} conectada exitosamente! Ahora podés sincronizar tus productos.
               </span>
             </motion.div>
@@ -115,8 +115,8 @@ export default function BrandConnect() {
                     <p className="text-xs text-muted-foreground">Store ID: <span className="text-foreground font-mono">{integration.storeId}</span></p>
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#C8FF00] bg-[#C8FF00]/10 px-3 py-1 rounded-full border border-[#C8FF00]/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C8FF00] inline-block" />
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-accent bg-foreground px-3 py-1 rounded-full border border-accent/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent inline-block" />
                   Conectado
                 </span>
               </div>
@@ -127,7 +127,7 @@ export default function BrandConnect() {
                     onClick={() => syncMutation.mutate(integration.id)}
                     disabled={syncMutation.isPending}
                     data-testid={`button-sync-${integration.storeId}`}
-                    className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-[#C8FF00]/40 text-[#C8FF00] text-sm font-semibold hover:bg-[#C8FF00]/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-foreground border border-accent/40 text-accent text-sm font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {syncMutation.isPending ? (
                       <Loader2 className="w-4 h-4 animate-spin" />

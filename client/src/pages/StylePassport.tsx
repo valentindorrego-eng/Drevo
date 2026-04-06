@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, ArrowLeft, Check, Sparkles, Palette, Calendar, DollarSign, X } from "lucide-react";
+import { ArrowRight, ArrowLeft, Check, Sparkles, Palette, Calendar, DollarSign, X, Shirt, Ruler, Heart } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 const VIBES = [
   { id: "minimalista", label: "Minimalista", icon: "◻️" },
@@ -16,6 +17,8 @@ const VIBES = [
   { id: "clasico", label: "Clásico", icon: "🎩" },
   { id: "atrevido", label: "Atrevido", icon: "⚡" },
   { id: "bohemio", label: "Bohemio", icon: "🌿" },
+  { id: "deportivo", label: "Deportivo", icon: "🏃" },
+  { id: "oversized", label: "Oversized", icon: "🧥" },
 ];
 
 const OCASIONES = [
@@ -25,8 +28,8 @@ const OCASIONES = [
   { id: "eventos", label: "Eventos y fiestas" },
   { id: "viajes", label: "Viajes" },
   { id: "deportivo", label: "Deportivo" },
-  { id: "quince", label: "Cumpleaños de 15" },
-  { id: "asado", label: "Asado familiar" },
+  { id: "universidad", label: "Universidad / facultad" },
+  { id: "citas", label: "Citas" },
 ];
 
 const PRESUPUESTOS = [
@@ -36,6 +39,28 @@ const PRESUPUESTOS = [
   { id: "premium", label: "+$200 USD", range: "💰💰💰💰" },
 ];
 
+const MARCAS_POPULARES = [
+  "Nike", "Adidas", "Zara", "H&M", "Uniqlo", "Pull&Bear",
+  "Bershka", "Lacoste", "Tommy Hilfiger", "Levi's",
+  "New Balance", "Converse", "Vans", "The North Face",
+  "Wrangler", "Polo Ralph Lauren",
+];
+
+const TALLES = ["XS", "S", "M", "L", "XL", "XXL"];
+
+const COLORES_EVITAR = [
+  { id: "ninguno", label: "Ninguno, me gustan todos", color: "bg-gradient-to-r from-red-400 via-green-400 to-blue-400" },
+  { id: "rosa", label: "Rosa", color: "bg-pink-400" },
+  { id: "naranja", label: "Naranja", color: "bg-orange-400" },
+  { id: "amarillo", label: "Amarillo", color: "bg-yellow-400" },
+  { id: "verde", label: "Verde", color: "bg-green-500" },
+  { id: "morado", label: "Morado", color: "bg-purple-500" },
+  { id: "rojo", label: "Rojo", color: "bg-red-500" },
+  { id: "marron", label: "Marrón", color: "bg-amber-700" },
+];
+
+const TOTAL_STEPS = 6;
+
 export default function StylePassport() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -43,16 +68,21 @@ export default function StylePassport() {
   const [selectedVibes, setSelectedVibes] = useState<string[]>([]);
   const [selectedOcasiones, setSelectedOcasiones] = useState<string[]>([]);
   const [selectedPresupuesto, setSelectedPresupuesto] = useState<string>("");
+  const [selectedMarcas, setSelectedMarcas] = useState<string[]>([]);
+  const [customMarca, setCustomMarca] = useState("");
+  const [selectedTalle, setSelectedTalle] = useState<string>("");
+  const [selectedColoresEvitar, setSelectedColoresEvitar] = useState<string[]>([]);
+  const [genero, setGenero] = useState<string>("");
 
   const savePassport = useMutation({
-    mutationFn: async (data: { styleVibes: string[]; ocasionesFrecuentes: string[]; presupuestoRango: string }) => {
+    mutationFn: async (data: any) => {
       const res = await apiRequest("POST", "/api/user/style-passport", data);
       return await res.json();
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/auth/me"], data);
-      toast({ title: "Style Passport completado", description: "Tu perfil de estilo fue guardado." });
-      setLocation("/");
+      toast({ title: "Listo!", description: "Tu perfil de estilo fue guardado. El estilista ya te conoce." });
+      setLocation("/stylist");
     },
     onError: () => {
       toast({ title: "Error", description: "No se pudo guardar tu perfil de estilo.", variant: "destructive" });
@@ -67,21 +97,53 @@ export default function StylePassport() {
     setSelectedOcasiones(prev => prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]);
   };
 
+  const toggleMarca = (marca: string) => {
+    setSelectedMarcas(prev => prev.includes(marca) ? prev.filter(m => m !== marca) : [...prev, marca]);
+  };
+
+  const addCustomMarca = () => {
+    const m = customMarca.trim();
+    if (m && !selectedMarcas.includes(m)) {
+      setSelectedMarcas(prev => [...prev, m]);
+      setCustomMarca("");
+    }
+  };
+
+  const toggleColor = (id: string) => {
+    if (id === "ninguno") {
+      setSelectedColoresEvitar(prev => prev.includes("ninguno") ? [] : ["ninguno"]);
+      return;
+    }
+    setSelectedColoresEvitar(prev => {
+      const without = prev.filter(c => c !== "ninguno");
+      return without.includes(id) ? without.filter(c => c !== id) : [...without, id];
+    });
+  };
+
   const handleNext = () => {
-    if (step === 2) {
+    if (step === TOTAL_STEPS - 1) {
       savePassport.mutate({
         styleVibes: selectedVibes,
         ocasionesFrecuentes: selectedOcasiones,
         presupuestoRango: selectedPresupuesto,
+        marcasFavoritas: selectedMarcas,
+        coloresEvitar: selectedColoresEvitar.includes("ninguno") ? [] : selectedColoresEvitar,
+        preferredSize: selectedTalle || null,
+        genero: genero || null,
       });
       return;
     }
     setStep(prev => prev + 1);
   };
 
-  const canProceed = step === 0 ? selectedVibes.length > 0 : step === 1 ? selectedOcasiones.length > 0 : !!selectedPresupuesto;
-
-  const stepIcons = [<Palette key={0} className="w-5 h-5" />, <Calendar key={1} className="w-5 h-5" />, <DollarSign key={2} className="w-5 h-5" />];
+  const canProceed =
+    step === 0 ? !!genero :
+    step === 1 ? selectedVibes.length > 0 :
+    step === 2 ? selectedOcasiones.length > 0 :
+    step === 3 ? !!selectedPresupuesto :
+    step === 4 ? true : // marcas es opcional
+    step === 5 ? true : // colores es opcional
+    false;
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -89,8 +151,10 @@ export default function StylePassport() {
         <div className="w-full mb-8">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-[#C8FF00]" />
-              <span className="text-sm font-medium text-[#C8FF00] uppercase tracking-wider">Style Passport</span>
+              <span className="inline-flex items-center gap-2 bg-foreground px-3 py-1 rounded-full">
+                <Sparkles className="w-4 h-4 text-accent" />
+                <span className="text-sm font-medium text-accent uppercase tracking-wider">Style Passport</span>
+              </span>
             </div>
             <button
               onClick={() => setLocation("/")}
@@ -100,17 +164,57 @@ export default function StylePassport() {
               Omitir <X className="w-4 h-4" />
             </button>
           </div>
-          <div className="flex gap-2 mb-8">
-            {[0, 1, 2].map(i => (
-              <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= step ? "bg-[#C8FF00]" : "bg-border"}`} />
+          <div className="flex gap-1 mb-8">
+            {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+              <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= step ? "bg-accent" : "bg-border"}`} />
             ))}
           </div>
+          <p className="text-xs text-muted-foreground">Paso {step + 1} de {TOTAL_STEPS}</p>
         </div>
 
         <AnimatePresence mode="wait">
+          {/* Step 0: Gender */}
           {step === 0 && (
             <motion.div
               key="step0"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="w-full space-y-8"
+            >
+              <div className="space-y-2">
+                <h1 className="text-3xl md:text-4xl font-display font-bold">
+                  Primero lo básico
+                </h1>
+                <p className="text-muted-foreground">Así podemos mostrarte ropa que te quede.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                {[
+                  { id: "hombre", label: "Hombre" },
+                  { id: "mujer", label: "Mujer" },
+                  { id: "no_binario", label: "No binario / Prefiero no decir" },
+                ].map(g => (
+                  <button
+                    key={g.id}
+                    onClick={() => setGenero(g.id)}
+                    className={cn(
+                      "p-5 rounded-xl border text-left transition-all text-lg font-medium",
+                      genero === g.id
+                        ? "border-accent bg-accent/10 text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:border-foreground/30"
+                    )}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 1: Vibes */}
+          {step === 1 && (
+            <motion.div
+              key="step1"
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -50 }}
@@ -128,11 +232,12 @@ export default function StylePassport() {
                     key={v.id}
                     onClick={() => toggleVibe(v.id)}
                     data-testid={`button-vibe-${v.id}`}
-                    className={`p-4 rounded-xl border text-left transition-all ${
+                    className={cn(
+                      "p-4 rounded-xl border text-left transition-all",
                       selectedVibes.includes(v.id)
-                        ? "border-[#C8FF00] bg-[#C8FF00]/10 text-white"
-                        : "border-border bg-card text-neutral-300 hover:border-border"
-                    }`}
+                        ? "border-accent bg-accent/10 text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:border-foreground/30"
+                    )}
                   >
                     <span className="text-2xl mb-2 block">{v.icon}</span>
                     <span className="font-medium">{v.label}</span>
@@ -142,9 +247,10 @@ export default function StylePassport() {
             </motion.div>
           )}
 
-          {step === 1 && (
+          {/* Step 2: Occasions */}
+          {step === 2 && (
             <motion.div
-              key="step1"
+              key="step2"
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -50 }}
@@ -162,11 +268,12 @@ export default function StylePassport() {
                     key={o.id}
                     onClick={() => toggleOcasion(o.id)}
                     data-testid={`button-ocasion-${o.id}`}
-                    className={`p-4 rounded-xl border text-left transition-all ${
+                    className={cn(
+                      "p-4 rounded-xl border text-left transition-all",
                       selectedOcasiones.includes(o.id)
-                        ? "border-[#C8FF00] bg-[#C8FF00]/10 text-white"
-                        : "border-border bg-card text-neutral-300 hover:border-border"
-                    }`}
+                        ? "border-accent bg-accent/10 text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:border-foreground/30"
+                    )}
                   >
                     <span className="font-medium">{o.label}</span>
                   </button>
@@ -175,9 +282,10 @@ export default function StylePassport() {
             </motion.div>
           )}
 
-          {step === 2 && (
+          {/* Step 3: Budget */}
+          {step === 3 && (
             <motion.div
-              key="step2"
+              key="step3"
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -50 }}
@@ -195,17 +303,145 @@ export default function StylePassport() {
                     key={p.id}
                     onClick={() => setSelectedPresupuesto(p.id)}
                     data-testid={`button-presupuesto-${p.id}`}
-                    className={`p-5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                    className={cn(
+                      "p-5 rounded-xl border text-left transition-all flex items-center justify-between",
                       selectedPresupuesto === p.id
-                        ? "border-[#C8FF00] bg-[#C8FF00]/10 text-white"
-                        : "border-border bg-card text-neutral-300 hover:border-border"
-                    }`}
+                        ? "border-accent bg-accent/10 text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:border-foreground/30"
+                    )}
                   >
                     <span className="font-medium text-lg">{p.label}</span>
                     <span className="text-lg">{p.range}</span>
                   </button>
                 ))}
               </div>
+            </motion.div>
+          )}
+
+          {/* Step 4: Favorite brands */}
+          {step === 4 && (
+            <motion.div
+              key="step4"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="w-full space-y-8"
+            >
+              <div className="space-y-2">
+                <h1 className="text-3xl md:text-4xl font-display font-bold">
+                  ¿Qué marcas te gustan?
+                </h1>
+                <p className="text-muted-foreground">Elegí las que más comprás o te gustaría comprar. Podés agregar otras.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {MARCAS_POPULARES.map(m => (
+                  <button
+                    key={m}
+                    onClick={() => toggleMarca(m)}
+                    className={cn(
+                      "px-4 py-2 rounded-full border text-sm font-medium transition-all",
+                      selectedMarcas.includes(m)
+                        ? "border-accent bg-accent/10 text-foreground"
+                        : "border-border text-muted-foreground hover:border-foreground/30"
+                    )}
+                  >
+                    {m}
+                  </button>
+                ))}
+                {selectedMarcas.filter(m => !MARCAS_POPULARES.includes(m)).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => toggleMarca(m)}
+                    className="px-4 py-2 rounded-full border border-accent bg-accent/10 text-foreground text-sm font-medium transition-all"
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customMarca}
+                  onChange={e => setCustomMarca(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && addCustomMarca()}
+                  placeholder="Agregar otra marca..."
+                  className="flex-1 px-4 py-3 rounded-xl border border-border bg-card text-foreground placeholder:text-muted-foreground text-sm outline-none focus:border-accent/50"
+                />
+                <button
+                  onClick={addCustomMarca}
+                  disabled={!customMarca.trim()}
+                  className="px-4 py-3 rounded-xl bg-accent text-black font-medium text-sm disabled:opacity-30"
+                >
+                  Agregar
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">Opcional — si no elegís ninguna, te mostramos de todo.</p>
+            </motion.div>
+          )}
+
+          {/* Step 5: Size + Colors to avoid */}
+          {step === 5 && (
+            <motion.div
+              key="step5"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="w-full space-y-10"
+            >
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h1 className="text-3xl md:text-4xl font-display font-bold">
+                    Últimos detalles
+                  </h1>
+                  <p className="text-muted-foreground">Para afinar las recomendaciones.</p>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="font-medium text-foreground flex items-center gap-2">
+                    <Ruler className="w-4 h-4" /> Tu talle habitual
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {TALLES.map(t => (
+                      <button
+                        key={t}
+                        onClick={() => setSelectedTalle(t)}
+                        className={cn(
+                          "w-14 h-14 rounded-xl border font-bold text-sm transition-all",
+                          selectedTalle === t
+                            ? "border-accent bg-accent/10 text-foreground"
+                            : "border-border text-muted-foreground hover:border-foreground/30"
+                        )}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="font-medium text-foreground flex items-center gap-2">
+                    <Palette className="w-4 h-4" /> ¿Hay algún color que no te guste?
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {COLORES_EVITAR.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => toggleColor(c.id)}
+                        className={cn(
+                          "flex items-center gap-2 px-4 py-2.5 rounded-full border text-sm font-medium transition-all",
+                          selectedColoresEvitar.includes(c.id)
+                            ? "border-accent bg-accent/10 text-foreground"
+                            : "border-border text-muted-foreground hover:border-foreground/30"
+                        )}
+                      >
+                        <span className={cn("w-4 h-4 rounded-full", c.color)} />
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">Todo esto es opcional, podés avanzar sin completar.</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -226,15 +462,16 @@ export default function StylePassport() {
             onClick={handleNext}
             disabled={!canProceed || savePassport.isPending}
             data-testid="button-passport-next"
-            className={`flex items-center gap-2 px-8 py-4 rounded-full font-bold text-lg transition-all ${
+            className={cn(
+              "flex items-center gap-2 px-8 py-4 rounded-full font-bold text-lg transition-all",
               canProceed
-                ? "bg-[#C8FF00] text-black hover:bg-[#A3D600]"
+                ? "bg-accent text-black hover:bg-accent/80"
                 : "bg-border text-muted-foreground cursor-not-allowed"
-            }`}
+            )}
           >
             {savePassport.isPending ? (
               <span className="animate-pulse">Guardando...</span>
-            ) : step === 2 ? (
+            ) : step === TOTAL_STEPS - 1 ? (
               <><Check className="w-5 h-5" /> Completar</>
             ) : (
               <>Siguiente <ArrowRight className="w-5 h-5" /></>

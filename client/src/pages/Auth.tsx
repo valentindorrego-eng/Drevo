@@ -11,7 +11,7 @@ import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
 
 export default function Auth() {
   const [, setLocation] = useLocation();
-  const { login, register, isAuthenticated } = useAuth();
+  const { login, register, isAuthenticated, user } = useAuth();
   const { data: authConfig } = useQuery<{ googleEnabled: boolean }>({
     queryKey: ["/api/auth/config"],
     staleTime: Infinity,
@@ -24,8 +24,14 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) setLocation("/profile");
-  }, [isAuthenticated, setLocation]);
+    if (isAuthenticated) {
+      if (user && !user.stylePassportCompleted) {
+        setLocation("/style-passport");
+      } else {
+        setLocation("/");
+      }
+    }
+  }, [isAuthenticated, user, setLocation]);
 
   if (isAuthenticated) return null;
 
@@ -126,7 +132,7 @@ export default function Auth() {
             <Button
               type="submit"
               disabled={isPending}
-              className="w-full bg-[#C8FF00] text-black font-bold hover:bg-[#b8ef00] h-11"
+              className="w-full bg-accent text-black font-bold hover:bg-accent/80 h-11"
               data-testid="button-submit-auth"
             >
               {isPending ? (mode === "login" ? "Entrando..." : "Creando cuenta...") : mode === "login" ? "Entrar" : "Crear cuenta"}
@@ -162,7 +168,7 @@ export default function Auth() {
               {mode === "login" ? "¿No tenés cuenta?" : "¿Ya tenés cuenta?"}{" "}
               <button
                 onClick={() => setMode(mode === "login" ? "register" : "login")}
-                className="text-[#C8FF00] font-medium hover:underline"
+                className="text-foreground font-medium underline"
                 data-testid="button-switch-mode"
               >
                 {mode === "login" ? "Registrate" : "Iniciá sesión"}

@@ -1852,7 +1852,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
   app.post("/api/user/style-passport", requireAuth, async (req, res) => {
     try {
-      const { styleVibes, ocasionesFrecuentes, presupuestoRango, marcasFavoritas, coloresEvitar, estilosEvitar } = req.body;
+      const { styleVibes, ocasionesFrecuentes, presupuestoRango, marcasFavoritas, coloresEvitar, estilosEvitar, preferredSize, genero } = req.body;
       const user = await storage.updateUser(getAuthUser(req).id, {
         styleVibes: styleVibes || [],
         ocasionesFrecuentes: ocasionesFrecuentes || [],
@@ -1860,6 +1860,8 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
         marcasFavoritas: marcasFavoritas || [],
         coloresEvitar: coloresEvitar || [],
         estilosEvitar: estilosEvitar || [],
+        preferredSize: preferredSize || null,
+        bodyType: genero || null,
         stylePassportCompleted: true,
       });
       if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
@@ -1979,10 +1981,19 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
         const vibes = fullUser.styleVibes?.join(", ") || "no definido";
         const ocasiones = fullUser.ocasionesFrecuentes?.join(", ") || "no definido";
         const presupuesto = fullUser.presupuestoRango || "no definido";
+        const marcas = fullUser.marcasFavoritas?.length ? fullUser.marcasFavoritas.join(", ") : "sin preferencia";
+        const colores = fullUser.coloresEvitar?.length ? fullUser.coloresEvitar.join(", ") : "ninguno";
+        const talle = fullUser.preferredSize || "no definido";
+        const genero = fullUser.bodyType || "no definido";
         styleContext = `\n\nPERFIL DE ESTILO DEL USUARIO (Style Passport):
+- Género: ${genero}
 - Vibes/Estilo: ${vibes}
 - Ocasiones frecuentes: ${ocasiones}
-- Rango de presupuesto: ${presupuesto}`;
+- Rango de presupuesto: ${presupuesto}
+- Marcas favoritas: ${marcas}
+- Colores que no le gustan: ${colores}
+- Talle habitual: ${talle}
+Usá esta info para personalizar tus recomendaciones. No repitas estos datos al usuario a menos que te pregunte.`;
       }
 
       // Search catalog for product recommendations when relevant
@@ -2004,12 +2015,24 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
           if (matches.rows.length > 0) {
             const productIds = matches.rows.map((r: any) => r.product_id);
             const prods = await storage.getProductsByIds(productIds);
+            // Store products for sending to client
+            (req as any)._stylistProducts = prods.map(p => ({
+              id: p.id,
+              title: p.title,
+              price: p.price,
+              salePrice: p.salePrice,
+              brandName: p.brandName,
+              imageUrl: p.images?.[0]?.url || null,
+              externalUrl: p.externalUrl,
+            }));
             const prodList = prods.map(p => {
               const price = p.salePrice ? `$${p.salePrice}` : (p.price ? `$${p.price}` : "precio no disponible");
-              return `- ${p.title} (${p.brandName || "marca"}) — ${price} [ID: ${p.id}]`;
+              return `- ${p.title} (${p.brandName || "marca"}) — ${price} [PRODUCT:${p.id}]`;
             }).join("\n");
             catalogContext = `\n\nPRODUCTOS RELEVANTES EN CATÁLOGO DREVO (podés recomendar estos):
-${prodList}`;
+${prodList}
+
+IMPORTANTE: Cuando mencionés un producto del catálogo, SIEMPRE incluí su marcador [PRODUCT:id] al lado del nombre para que el usuario pueda verlo. Ejemplo: "Te recomiendo el Classic Hoodie Negro [PRODUCT:abc123]"`;
           }
         } catch (e) {
           console.error("Stylist catalog search error:", e);
@@ -2031,7 +2054,9 @@ CAPACIDADES:
 - Considerás el estilo personal, la ocasión, el clima y el presupuesto.
 
 FORMATO:
-- Cuando recomendás productos del catálogo, mostralos con nombre, marca y precio.
+- NUNCA uses markdown (nada de **, ##, *, etc). Escribí texto plano siempre.
+- No uses listas con viñetas tipo "- ". Escribí en prosa natural, como un mensaje de WhatsApp.
+- Cuando recomendás productos del catálogo, nombralos naturalmente en el texto.
 - Si el usuario manda una foto de su ropa, describí lo que ves y sugerí combinaciones.
 - Usá emojis con moderación para ser amigable pero no exagerar.${styleContext}${catalogContext}`;
 
@@ -2068,6 +2093,12 @@ FORMATO:
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+
+      // Send product data first so frontend can render cards
+      const stylistProducts = (req as any)._stylistProducts;
+      if (stylistProducts?.length > 0) {
+        res.write(`data: ${JSON.stringify({ products: stylistProducts })}\n\n`);
+      }
 
       const stream = anthropic.messages.stream({
         model: process.env.ANTHROPIC_STYLIST_MODEL || "claude-sonnet-4-20250514",

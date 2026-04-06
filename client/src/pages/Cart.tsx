@@ -154,7 +154,7 @@ export default function Cart() {
 
           <div className="space-y-3">
             <Link href="/checkout">
-              <span className="w-full h-14 bg-[#C8FF00] text-black rounded-xl font-bold text-lg hover:bg-[#A3D600] transition-colors flex items-center justify-center gap-2 cursor-pointer" data-testid="link-checkout">
+              <span className="w-full h-14 bg-accent text-black rounded-xl font-bold text-lg hover:bg-accent/80 transition-colors flex items-center justify-center gap-2 cursor-pointer" data-testid="link-checkout">
                 <CreditCard className="w-5 h-5" />
                 Finalizar compra
               </span>

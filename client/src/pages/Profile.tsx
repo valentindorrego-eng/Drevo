@@ -117,7 +117,7 @@ export default function Profile() {
           <form onSubmit={handleSave} className="space-y-6">
             <div className="bg-card/50 border border-border rounded-xl p-6 space-y-4">
               <h2 className="text-lg font-display font-semibold flex items-center gap-2">
-                <User className="w-5 h-5 text-[#C8FF00]" />
+                <User className="w-5 h-5 text-accent" />
                 Datos personales
               </h2>
 
@@ -136,7 +136,7 @@ export default function Profile() {
 
             <div className="bg-card/50 border border-border rounded-xl p-6 space-y-4">
               <h2 className="text-lg font-display font-semibold flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-[#C8FF00]" />
+                <Sparkles className="w-5 h-5 text-accent" />
                 Foto para probador virtual
               </h2>
               <p className="text-muted-foreground text-sm">Subí una foto de cuerpo completo para usar en el probador virtual. De frente, con buena luz.</p>
@@ -185,7 +185,7 @@ export default function Profile() {
 
             <div className="bg-card/50 border border-border rounded-xl p-6 space-y-4">
               <h2 className="text-lg font-display font-semibold flex items-center gap-2">
-                <Ruler className="w-5 h-5 text-[#C8FF00]" />
+                <Ruler className="w-5 h-5 text-accent" />
                 Medidas corporales
               </h2>
               <p className="text-muted-foreground text-sm">Estos datos mejoran las recomendaciones de talle y el probador virtual.</p>
@@ -257,7 +257,7 @@ export default function Profile() {
               <Button
                 type="submit"
                 disabled={updateProfile.isPending}
-                className="flex-1 bg-[#C8FF00] text-black font-bold hover:bg-[#b8ef00] h-11"
+                className="flex-1 bg-accent text-black font-bold hover:bg-accent/80 h-11"
                 data-testid="button-save-profile"
               >
                 <Save className="w-4 h-4 mr-2" />
@@ -279,8 +279,8 @@ export default function Profile() {
           <Link href="/orders">
             <div className="mt-6 border border-border rounded-xl p-5 bg-card hover:border-border transition-colors cursor-pointer flex items-center justify-between group" data-testid="link-my-orders">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-[#C8FF00]/10 rounded-lg flex items-center justify-center">
-                  <Package className="w-5 h-5 text-[#C8FF00]" />
+                <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center">
+                  <Package className="w-5 h-5 text-accent" />
                 </div>
                 <div>
                   <p className="font-semibold">Mis Compras</p>

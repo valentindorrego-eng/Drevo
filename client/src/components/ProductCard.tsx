@@ -53,14 +53,14 @@ export function ProductCard({ product, index = 0, showSayMore = true }: ProductC
               />
 
               {hasDiscount && (
-                <div className="absolute top-3 left-3 bg-[#C8FF00] text-black text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">
+                <div className="absolute top-3 left-3 bg-accent text-black text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">
                   Sale
                 </div>
               )}
 
               {product.reasons && product.reasons.length > 0 && (
                 <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-background/90 to-transparent translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                  <p className="text-xs text-[#C8FF00] font-medium line-clamp-2">
+                  <p className="text-xs text-accent font-medium line-clamp-2">
                     {product.reasons[0]}
                   </p>
                 </div>
@@ -79,7 +79,7 @@ export function ProductCard({ product, index = 0, showSayMore = true }: ProductC
                 {showSayMore && (
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSayMoreOpen(true); }}
-                    className="p-1.5 rounded-full bg-card border border-border text-muted-foreground hover:bg-[#C8FF00]/10 hover:text-[#C8FF00] hover:border-[#C8FF00]/20 transition-all opacity-0 group-hover:opacity-100"
+                    className="p-1.5 rounded-full bg-card border border-border text-muted-foreground hover:bg-accent/10 hover:text-accent hover:border-accent/20 transition-all opacity-0 group-hover:opacity-100"
                     title="Say More — encontrar similares"
                   >
                     <MessageCircle className="w-3.5 h-3.5" />

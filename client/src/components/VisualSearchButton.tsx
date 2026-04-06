@@ -42,7 +42,7 @@ export function VisualSearchButton({ className }: VisualSearchButtonProps) {
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className={`p-3 bg-card border border-border rounded-xl text-muted-foreground hover:bg-[#C8FF00]/10 hover:text-[#C8FF00] hover:border-[#C8FF00]/20 transition-all ${className}`}
+        className={`p-3 bg-card border border-border rounded-xl text-muted-foreground hover:bg-accent/10 hover:text-accent hover:border-accent/20 transition-all ${className}`}
         title="Buscar por imagen"
       >
         <Camera className="w-5 h-5" />
@@ -68,7 +68,7 @@ export function VisualSearchButton({ className }: VisualSearchButtonProps) {
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-2">
-                  <Camera className="w-5 h-5 text-[#C8FF00]" />
+                  <Camera className="w-5 h-5 text-accent" />
                   <h3 className="text-sm font-semibold text-foreground">Búsqueda visual</h3>
                 </div>
                 <button onClick={handleClose} className="p-2 text-muted-foreground hover:text-foreground transition-colors">
@@ -91,7 +91,7 @@ export function VisualSearchButton({ className }: VisualSearchButtonProps) {
                     {!preview ? (
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="w-full aspect-[4/3] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-3 hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/5 transition-all"
+                        className="w-full aspect-[4/3] border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-3 hover:border-accent/30 hover:bg-accent/5 transition-all"
                       >
                         <ImageIcon className="w-10 h-10 text-muted-foreground" />
                         <p className="text-sm text-muted-foreground">Subí una foto del look que querés encontrar</p>
@@ -113,12 +113,12 @@ export function VisualSearchButton({ className }: VisualSearchButtonProps) {
                           value={context}
                           onChange={(e) => setContext(e.target.value)}
                           placeholder="Contexto adicional (opcional): 'para oficina', 'más casual'..."
-                          className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/30"
                         />
 
                         <button
                           onClick={handleSearch}
-                          className="w-full flex items-center justify-center gap-2 bg-[#C8FF00] text-black py-3 rounded-xl font-bold hover:bg-[#A3D600] transition-all"
+                          className="w-full flex items-center justify-center gap-2 bg-accent text-black py-3 rounded-xl font-bold hover:bg-accent/80 transition-all"
                         >
                           <Send className="w-4 h-4" />
                           Buscar productos similares
@@ -130,7 +130,7 @@ export function VisualSearchButton({ className }: VisualSearchButtonProps) {
 
                 {isPending && (
                   <div className="flex flex-col items-center justify-center py-16 space-y-4">
-                    <Loader2 className="w-10 h-10 text-[#C8FF00] animate-spin" />
+                    <Loader2 className="w-10 h-10 text-accent animate-spin" />
                     <p className="text-muted-foreground text-sm animate-pulse">Analizando imagen...</p>
                     <p className="text-muted-foreground text-xs">Esto puede tomar unos segundos</p>
                   </div>

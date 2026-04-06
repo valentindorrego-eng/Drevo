@@ -13,7 +13,7 @@ export default function NotFound() {
           La página que buscás no existe o fue movida. Probá buscando lo que necesitás.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 mt-4">
-          <Link href="/search" className="flex items-center justify-center gap-2 px-6 py-3 bg-[#C8FF00] text-black rounded font-bold hover:bg-[#A3D600] transition-colors">
+          <Link href="/search" className="flex items-center justify-center gap-2 px-6 py-3 bg-accent text-black rounded font-bold hover:bg-accent/80 transition-colors">
             <Search className="w-4 h-4" /> Buscar productos
           </Link>
           <Link href="/" className="flex items-center justify-center gap-2 px-6 py-3 border border-white/20 rounded font-medium text-neutral-300 hover:text-white hover:border-white transition-colors">

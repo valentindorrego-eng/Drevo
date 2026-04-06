@@ -217,8 +217,8 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
         >
           <div className="flex items-center justify-between p-6 border-b border-border">
             <div className="flex items-center gap-3">
-              <div className="bg-[#C8FF00]/10 p-2 rounded-lg">
-                <Sparkles className="w-5 h-5 text-[#C8FF00]" />
+              <div className="bg-accent/10 p-2 rounded-lg">
+                <Sparkles className="w-5 h-5 text-accent" />
               </div>
               <div>
                 <h2 className="text-lg font-display font-bold text-foreground">Probador Virtual</h2>
@@ -255,7 +255,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                       onClick={() => { setPhotoSource("profile"); setResultImage(null); setStatus("idle"); }}
                       className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs rounded-lg border transition-colors ${
                         photoSource === "profile"
-                          ? "bg-[#C8FF00]/10 border-[#C8FF00]/30 text-[#C8FF00]"
+                          ? "bg-accent/10 border-accent/30 text-accent"
                           : "bg-card border-border text-muted-foreground hover:bg-secondary"
                       }`}
                       data-testid="button-use-profile-photo"
@@ -267,7 +267,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                       onClick={() => { setPhotoSource("upload"); fileInputRef.current?.click(); }}
                       className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs rounded-lg border transition-colors ${
                         photoSource === "upload"
-                          ? "bg-[#C8FF00]/10 border-[#C8FF00]/30 text-[#C8FF00]"
+                          ? "bg-accent/10 border-accent/30 text-accent"
                           : "bg-card border-border text-muted-foreground hover:bg-secondary"
                       }`}
                       data-testid="button-upload-new-photo"
@@ -316,7 +316,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
               <button
                 onClick={() => handleGenerate()}
                 disabled={!activePhoto && !uploadedPhoto}
-                className="w-full py-4 bg-[#C8FF00] text-black font-bold rounded-xl hover:bg-[#A3D600] transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
+                className="w-full py-4 bg-accent text-black font-bold rounded-xl hover:bg-accent/80 transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
                 data-testid="button-generate-tryon"
               >
                 <Sparkles className="w-5 h-5" />
@@ -326,14 +326,14 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
 
             {status === "loading" && (
               <div className="text-center py-8 space-y-4">
-                <Loader2 className="w-10 h-10 text-[#C8FF00] animate-spin mx-auto" />
+                <Loader2 className="w-10 h-10 text-accent animate-spin mx-auto" />
                 <div>
                   <p className="text-foreground font-medium">Generando tu prueba virtual...</p>
                   <p className="text-sm text-muted-foreground mt-1">Esto puede tardar 15-30 segundos</p>
                 </div>
                 <div className="w-full bg-secondary rounded-full h-1 overflow-hidden">
                   <motion.div
-                    className="h-full bg-[#C8FF00]"
+                    className="h-full bg-accent"
                     initial={{ width: "0%" }}
                     animate={{ width: "90%" }}
                     transition={{ duration: 25, ease: "linear" }}
@@ -345,14 +345,14 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
             {status === "done" && resultImage && (
               <div className="space-y-4">
                 <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium text-center">Resultado</p>
-                <div className="aspect-[9/16] max-h-[500px] bg-secondary rounded-xl overflow-hidden border border-[#C8FF00]/20 mx-auto">
+                <div className="aspect-[9/16] max-h-[500px] bg-secondary rounded-xl overflow-hidden border border-accent/20 mx-auto">
                   <img src={resultImage} alt="Prueba virtual" className="w-full h-full object-contain" data-testid="img-tryon-result" />
                 </div>
                 <div className="flex gap-3">
                   <button
                     onClick={handleDownload}
                     disabled={isSharing}
-                    className="flex-1 py-3 bg-[#C8FF00] hover:bg-[#A3D600] rounded-xl text-black font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    className="flex-1 py-3 bg-accent hover:bg-accent/80 rounded-xl text-black font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                     data-testid="button-download-tryon"
                   >
                     <Download className="w-4 h-4" />

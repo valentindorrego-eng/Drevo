@@ -99,7 +99,7 @@ export default function Collections() {
             <div className="text-center py-20">
               <p className="text-muted-foreground text-lg mb-4">Esta colección está vacía.</p>
               <Link href="/search">
-                <span className="text-[#C8FF00] hover:underline cursor-pointer">Explorá productos para agregar</span>
+                <span className="text-foreground underline font-medium cursor-pointer">Explorá productos para agregar</span>
               </Link>
             </div>
           ) : (
@@ -152,14 +152,14 @@ export default function Collections() {
               value={newCollectionName}
               onChange={(e) => setNewCollectionName(e.target.value)}
               placeholder="Nombre de la colección..."
-              className="flex-1 bg-transparent border border-border rounded px-4 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/50"
+              className="flex-1 bg-transparent border border-border rounded px-4 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-accent/50"
               data-testid="input-new-collection-name"
               autoFocus
             />
             <button
               onClick={() => newCollectionName.trim() && createCollection.mutate({ name: newCollectionName.trim() })}
               disabled={!newCollectionName.trim()}
-              className="px-6 py-2 bg-[#C8FF00] text-black font-medium rounded hover:bg-[#A3D600] transition-colors disabled:opacity-50"
+              className="px-6 py-2 bg-accent text-black font-medium rounded hover:bg-accent/80 transition-colors disabled:opacity-50"
               data-testid="button-create-collection"
             >
               Crear
@@ -188,7 +188,7 @@ export default function Collections() {
               >
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-2xl">{c.emoji || "📌"}</span>
-                  <h3 className="text-lg font-semibold group-hover:text-[#C8FF00] transition-colors">{c.name}</h3>
+                  <h3 className="text-lg font-semibold group-hover:text-accent transition-colors">{c.name}</h3>
                 </div>
                 {c.isDefault && <span className="text-xs text-muted-foreground">Colección principal</span>}
               </button>

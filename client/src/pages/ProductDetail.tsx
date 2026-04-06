@@ -175,10 +175,14 @@ export default function ProductDetail() {
       <Navigation />
 
       <div className="pt-24 pb-20 px-4 md:px-8 max-w-7xl mx-auto">
-        <Link href="/search" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors" data-testid="link-back-search">
+        <button
+          onClick={() => window.history.back()}
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
+          data-testid="link-back-search"
+        >
           <ArrowLeft className="w-4 h-4" />
-          <span>Volver a la búsqueda</span>
-        </Link>
+          <span>Volver</span>
+        </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-24">
 
@@ -246,7 +250,7 @@ export default function ProductDetail() {
                       onClick={handleBookmark}
                       className={cn(
                         "transition-colors",
-                        isSaved ? "text-[#C8FF00]" : "text-muted-foreground hover:text-[#C8FF00]"
+                        isSaved ? "text-accent" : "text-muted-foreground hover:text-accent"
                       )}
                       data-testid="button-favorite"
                     >
@@ -335,7 +339,7 @@ export default function ProductDetail() {
                     setTryOnOpen(true);
                   }}
                   data-testid="button-try-on"
-                  className="w-full h-12 border border-[#C8FF00]/30 rounded font-medium text-sm text-[#C8FF00] hover:bg-[#C8FF00]/10 hover:border-[#C8FF00]/50 transition-all flex items-center justify-center gap-2"
+                  className="w-full h-12 bg-foreground border border-accent/30 rounded font-medium text-sm text-accent hover:bg-foreground/90 hover:border-accent/50 transition-all flex items-center justify-center gap-2"
                 >
                   <Sparkles className="w-4 h-4" />
                   Probar producto

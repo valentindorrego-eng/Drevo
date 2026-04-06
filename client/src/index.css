@@ -54,7 +54,7 @@
   --secondary-foreground: 0 0% 5%;
   --muted: 0 0% 94%;
   --muted-foreground: 0 0% 40%;
-  --accent: 75 100% 38%;          /* Darker lima for contrast on white */
+  --accent: 75 100% 50%;          /* Same bright lima — elements use dark bg for contrast */
   --accent-foreground: 0 0% 5%;
   --destructive: 0 62% 50%;
   --destructive-foreground: 0 0% 100%;
