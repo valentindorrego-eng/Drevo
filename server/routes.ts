@@ -1873,6 +1873,87 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
     }
   });
 
+  // ─── Personalized Feed ───
+
+  app.get("/api/feed", async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 30, 50);
+      const offset = Number(req.query.offset) || 0;
+
+      // Check if user is authenticated and has style passport
+      let user: any = null;
+      try {
+        user = getAuthUser(req);
+        if (user?.id) user = await storage.getUser(user.id);
+      } catch {}
+
+      // Build a personalization query from user's Style Passport
+      let feedQuery = "moda tendencia ropa popular";
+      if (user?.stylePassportCompleted) {
+        const parts: string[] = [];
+        if (user.styleVibes?.length) parts.push(`estilo ${user.styleVibes.join(", ")}`);
+        if (user.ocasionesFrecuentes?.length) parts.push(`para ${user.ocasionesFrecuentes.join(", ")}`);
+        if (user.marcasFavoritas?.length) parts.push(`marcas como ${user.marcasFavoritas.join(", ")}`);
+        if (user.bodyType) parts.push(`ropa de ${user.bodyType}`);
+        if (parts.length > 0) feedQuery = parts.join(". ");
+      }
+
+      let feedProducts: any[] = [];
+
+      if (openai) {
+        try {
+          const embRes = await openai.embeddings.create({
+            model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+            input: feedQuery,
+          });
+          const embStr = `[${embRes.data[0].embedding.join(",")}]`;
+          const matches = await pool.query(
+            `SELECT * FROM match_products($1::vector(1536), $2, 0.05)`,
+            [embStr, limit + offset]
+          );
+          const productIds = matches.rows.slice(offset).map((r: any) => r.product_id);
+          feedProducts = await storage.getProductsByIds(productIds);
+
+          // Boost products matching user preferences
+          if (user?.stylePassportCompleted) {
+            const coloresEvitar = new Set(user.coloresEvitar || []);
+            feedProducts = feedProducts.filter(p => {
+              const tags = p.tags?.map((t: any) => t.tag?.toLowerCase()) || [];
+              for (const c of coloresEvitar) {
+                if (tags.some((t: string) => t.includes(c))) return false;
+              }
+              return true;
+            });
+          }
+
+          // Preserve similarity order from vector search
+          const idOrder = new Map(productIds.map((id: string, i: number) => [id, i]));
+          feedProducts.sort((a: any, b: any) => (idOrder.get(a.id) ?? 999) - (idOrder.get(b.id) ?? 999));
+        } catch (e) {
+          console.error("Feed vector search error:", e);
+        }
+      }
+
+      // Fallback: return all products shuffled
+      if (feedProducts.length === 0) {
+        const all = await storage.getProducts();
+        // Deterministic shuffle based on day (changes daily)
+        const day = new Date().toISOString().slice(0, 10);
+        const seed = day.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+        feedProducts = all.sort(() => Math.sin(seed + Math.random()) - 0.5).slice(offset, offset + limit);
+      }
+
+      res.json({
+        products: feedProducts.slice(0, limit),
+        personalized: !!user?.stylePassportCompleted,
+        hasMore: feedProducts.length >= limit,
+      });
+    } catch (error) {
+      console.error("Feed error:", error);
+      res.status(500).json({ message: "Error al cargar el feed" });
+    }
+  });
+
   // ─── Collections Routes ───
 
   app.get("/api/collections", requireAuth, async (req, res) => {
