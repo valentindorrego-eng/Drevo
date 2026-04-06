@@ -6,7 +6,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
 import { db, pool } from "./db";
-import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings, brandIntegrations, type User } from "@shared/schema";
+import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings, brandIntegrations, waitlistEntries, type User } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { passport } from "./auth";
 import bcrypt from "bcryptjs";
@@ -45,6 +45,36 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // ─── Waitlist ───
+
+  app.post("/api/waitlist", async (req, res) => {
+    try {
+      const { email, source } = req.body;
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ message: "Email inválido" });
+      }
+      const existing = await db.select().from(waitlistEntries).where(eq(waitlistEntries.email, email.toLowerCase().trim()));
+      if (existing.length > 0) {
+        return res.json({ message: "already_registered", success: true });
+      }
+      await db.insert(waitlistEntries).values({ email: email.toLowerCase().trim(), source: source || "landing" });
+      const count = await db.select({ count: sql<number>`count(*)` }).from(waitlistEntries);
+      res.json({ success: true, position: Number(count[0].count) });
+    } catch (error) {
+      console.error("Waitlist error:", error);
+      res.status(500).json({ message: "Error al registrar" });
+    }
+  });
+
+  app.get("/api/waitlist/count", async (_req, res) => {
+    try {
+      const count = await db.select({ count: sql<number>`count(*)` }).from(waitlistEntries);
+      res.json({ count: Number(count[0].count) });
+    } catch (error) {
+      res.status(500).json({ count: 0 });
+    }
+  });
 
   // ─── Auth Routes ───
 

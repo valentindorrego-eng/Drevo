@@ -1,9 +1,10 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Menu, X, Plug, UserCircle, Bookmark, Fingerprint, Package } from "lucide-react";
+import { ShoppingBag, Menu, X, Plug, UserCircle, Bookmark, Fingerprint, Package, Sun, Moon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/context/ThemeContext";
 
 export function Navigation() {
   const [location] = useLocation();
@@ -11,6 +12,7 @@ export function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { totalItems } = useCart();
   const { user, isAuthenticated } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -35,12 +37,12 @@ export function Navigation() {
     <header
       className={cn(
         "fixed top-0 left-0 right-0 z-50 transition-all duration-500 border-b border-transparent",
-        isScrolled ? "bg-black/60 backdrop-blur-xl backdrop-saturate-150 border-white/[0.06] py-3 shadow-2xl shadow-black/20" : "bg-transparent py-5"
+        isScrolled ? "bg-background/60 backdrop-blur-xl backdrop-saturate-150 border-border/50 py-3 shadow-2xl" : "bg-transparent py-5"
       )}
     >
       <div className="container mx-auto px-4 flex items-center justify-between">
         <Link href="/" className="text-2xl font-display font-bold tracking-tighter z-50 relative" data-testid="link-logo">
-          <span className="text-white">DRE</span><span className="text-[#C8FF00]">VO</span>
+          <span className="text-foreground">DRE</span><span className="text-[#C8FF00]">VO</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-8">
@@ -87,6 +89,13 @@ export function Navigation() {
               )}
             </Link>
           )}
+          <button
+            onClick={toggleTheme}
+            className="text-neutral-400 hover:text-white transition-colors p-1"
+            aria-label={theme === "dark" ? "Modo claro" : "Modo oscuro"}
+          >
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
           <Link href="/cart" data-testid="link-nav-cart" className={cn(
             "text-sm font-medium transition-colors hover:text-white flex items-center gap-2 relative",
             location === "/cart" ? "text-white" : "text-neutral-400"

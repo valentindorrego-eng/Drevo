@@ -260,7 +260,17 @@ export const brandPaymentAccounts = pgTable("brand_payment_accounts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ─── Waitlist ───
+
+export const waitlistEntries = pgTable("waitlist_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  source: text("source").default("landing"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Zod schemas and types
+export const insertWaitlistEntrySchema = createInsertSchema(waitlistEntries).omit({ id: true, createdAt: true });
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const insertBrandSchema = createInsertSchema(brands).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, updatedAt: true });
@@ -298,5 +308,6 @@ export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type BrandOrder = typeof brandOrders.$inferSelect;
 export type BrandPaymentAccount = typeof brandPaymentAccounts.$inferSelect;
+export type WaitlistEntry = typeof waitlistEntries.$inferSelect;
 
 export * from "./models/chat";
