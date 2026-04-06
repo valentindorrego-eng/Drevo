@@ -497,21 +497,16 @@ Reply with ONLY valid JSON, no explanation.`
         }
       }
 
-      await storage.createSearchQuery(input.query, intent);
-
-      // Embedding
+      // Generate embedding in parallel with storage (don't wait for intent — embedding is query-based)
       let embedding: number[] = [];
-      if (openai) {
-        try {
-          const embRes = await openai.embeddings.create({
-            model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
-            input: input.query,
-          });
-          embedding = embRes.data[0].embedding;
-        } catch (e) {
-          console.error("OpenAI Embedding Error:", e);
-        }
-      }
+      const [, embResult] = await Promise.all([
+        storage.createSearchQuery(input.query, intent),
+        openai ? openai.embeddings.create({
+          model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+          input: input.query,
+        }).catch(e => { console.error("OpenAI Embedding Error:", e); return null; }) : Promise.resolve(null),
+      ]);
+      if (embResult) embedding = embResult.data[0].embedding;
 
       let candidates: any[] = [];
       let similarities = new Map<string, number>();
@@ -542,8 +537,13 @@ Reply with ONLY valid JSON, no explanation.`
 
       if (intent.intent_type === "outfit" && intent.must_include?.length > 1) {
         const seenIds = new Set<string>();
-        for (const itemQuery of intent.must_include) {
-          const results = await doVectorSearch(itemQuery, 20);
+        // Parallelize all outfit item searches + main query fallback
+        const allSearches = await Promise.all([
+          ...intent.must_include.map((itemQuery: string) => doVectorSearch(itemQuery, 20)),
+          doVectorSearch(input.query, 40), // pre-fetch fallback in parallel
+        ]);
+        const fallbackResults = allSearches.pop()!;
+        for (const results of allSearches) {
           for (const r of results) {
             if (!seenIds.has(r.product.id)) {
               seenIds.add(r.product.id);
@@ -553,8 +553,7 @@ Reply with ONLY valid JSON, no explanation.`
           }
         }
         if (candidates.length < 10) {
-          const mainResults = await doVectorSearch(input.query, 40);
-          for (const r of mainResults) {
+          for (const r of fallbackResults) {
             if (!seenIds.has(r.product.id)) {
               seenIds.add(r.product.id);
               candidates.push(r.product);
