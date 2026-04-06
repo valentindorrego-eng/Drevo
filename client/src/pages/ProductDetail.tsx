@@ -91,7 +91,7 @@ export default function ProductDetail() {
   const handleSearchSimilar = () => {
     if (product) {
       const brandName = product.brand?.name || "";
-      const q = `Similar a ${product.title}${brandName ? ` de ${brandName}` : ""} pero más `;
+      const q = `Similar a ${product.title}${brandName ? ` de ${brandName}` : ""}`;
       setLocation(`/search?q=${encodeURIComponent(q)}`);
     }
   };
@@ -106,9 +106,23 @@ export default function ProductDetail() {
 
   if (error || !product) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white gap-4">
-        <p>Producto no encontrado.</p>
-        <Link href="/" className="text-neutral-400 hover:text-white underline">Volver al inicio</Link>
+      <div className="min-h-screen bg-black text-white">
+        <Navigation />
+        <div className="pt-32 flex flex-col items-center justify-center text-center gap-4 px-4">
+          <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-2">
+            <SearchIcon className="w-8 h-8 text-neutral-500" />
+          </div>
+          <h2 className="text-xl font-display font-bold">Producto no encontrado</h2>
+          <p className="text-neutral-500 max-w-md">Es posible que el producto haya sido eliminado o que el enlace sea incorrecto.</p>
+          <div className="flex gap-3 mt-4">
+            <Link href="/search" className="px-6 py-2.5 bg-white text-black rounded font-semibold hover:bg-neutral-200 transition-colors">
+              Buscar productos
+            </Link>
+            <Link href="/" className="px-6 py-2.5 border border-white/20 rounded font-medium text-neutral-300 hover:text-white transition-colors">
+              Ir al inicio
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -211,7 +225,21 @@ export default function ProductDetail() {
                     {product.brand?.name || "DREVO Selection"}
                   </h2>
                   <div className="flex gap-4">
-                    <button className="text-neutral-400 hover:text-white transition-colors" data-testid="button-share">
+                    <button
+                      onClick={async () => {
+                        const url = window.location.href;
+                        const shareData = { title: product.title, text: `Mirá ${product.title} en DREVO`, url };
+                        if (navigator.share) {
+                          try { await navigator.share(shareData); } catch {}
+                        } else {
+                          await navigator.clipboard.writeText(url);
+                          toast({ title: "Link copiado", description: "El enlace fue copiado al portapapeles." });
+                        }
+                      }}
+                      className="text-neutral-400 hover:text-white transition-colors"
+                      aria-label="Compartir producto"
+                      data-testid="button-share"
+                    >
                       <Share2 className="w-5 h-5" />
                     </button>
                     <button

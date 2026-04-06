@@ -1,12 +1,17 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// This is using Replit's AI Integrations service, which provides Gemini-compatible API access without requiring your own Gemini API key.
+// Uses Google AI directly (Google AI Studio API key) or Replit's proxy if available
+const geminiApiKey = process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
+const geminiBaseUrl = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
+
 export const ai = new GoogleGenAI({
-  apiKey: process.env.AI_INTEGRATIONS_GEMINI_API_KEY,
-  httpOptions: {
-    apiVersion: "",
-    baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
-  },
+  apiKey: geminiApiKey,
+  ...(geminiBaseUrl ? {
+    httpOptions: {
+      apiVersion: "",
+      baseUrl: geminiBaseUrl,
+    },
+  } : {}),
 });
 
 /**

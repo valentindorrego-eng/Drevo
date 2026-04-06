@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, ArrowLeft, Check, Sparkles, Palette, Calendar, DollarSign } from "lucide-react";
+import { ArrowRight, ArrowLeft, Check, Sparkles, Palette, Calendar, DollarSign, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
@@ -87,9 +87,18 @@ export default function StylePassport() {
     <div className="min-h-screen bg-black text-white flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-12 max-w-2xl mx-auto w-full">
         <div className="w-full mb-8">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles className="w-5 h-5 text-[#C8FF00]" />
-            <span className="text-sm font-medium text-[#C8FF00] uppercase tracking-wider">Style Passport</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#C8FF00]" />
+              <span className="text-sm font-medium text-[#C8FF00] uppercase tracking-wider">Style Passport</span>
+            </div>
+            <button
+              onClick={() => setLocation("/")}
+              className="flex items-center gap-1 text-neutral-400 hover:text-white transition-colors text-sm"
+              data-testid="button-passport-skip"
+            >
+              Omitir <X className="w-4 h-4" />
+            </button>
           </div>
           <div className="flex gap-2 mb-8">
             {[0, 1, 2].map(i => (

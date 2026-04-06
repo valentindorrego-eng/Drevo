@@ -90,21 +90,23 @@ export default function Cart() {
                     </div>
 
                     <div className="flex items-center justify-between mt-4">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => updateQuantity(item.id, item.sizeLabel, item.quantity - 1)}
-                          className="w-8 h-8 border border-white/20 rounded flex items-center justify-center hover:border-white transition-colors"
+                          className="w-10 h-10 border border-white/20 rounded-lg flex items-center justify-center hover:border-white active:bg-white/10 transition-colors"
+                          aria-label="Reducir cantidad"
                           data-testid={`button-decrease-${item.id}`}
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-4 h-4" />
                         </button>
-                        <span className="text-sm font-medium w-6 text-center" data-testid={`text-quantity-${item.id}`}>{item.quantity}</span>
+                        <span className="text-sm font-semibold w-8 text-center tabular-nums" data-testid={`text-quantity-${item.id}`}>{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.id, item.sizeLabel, item.quantity + 1)}
-                          className="w-8 h-8 border border-white/20 rounded flex items-center justify-center hover:border-white transition-colors"
+                          className="w-10 h-10 border border-white/20 rounded-lg flex items-center justify-center hover:border-white active:bg-white/10 transition-colors"
+                          aria-label="Aumentar cantidad"
                           data-testid={`button-increase-${item.id}`}
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-4 h-4" />
                         </button>
                       </div>
 

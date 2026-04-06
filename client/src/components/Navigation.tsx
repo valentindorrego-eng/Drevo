@@ -118,28 +118,44 @@ export function Navigation() {
           </Link>
         </nav>
 
-        <button
-          className="md:hidden text-white z-50 relative"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          data-testid="button-mobile-menu"
-        >
-          {mobileMenuOpen ? <X /> : <Menu />}
-        </button>
+        <div className="md:hidden flex items-center gap-4 z-50 relative">
+          <Link href="/cart" className="relative" aria-label="Carrito">
+            <ShoppingBag className="w-5 h-5 text-white" />
+            {totalItems > 0 && (
+              <span className="absolute -top-2 -right-2 bg-[#C8FF00] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {totalItems > 9 ? "9+" : totalItems}
+              </span>
+            )}
+          </Link>
+          <button
+            className="text-white"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+            aria-expanded={mobileMenuOpen}
+            data-testid="button-mobile-menu"
+          >
+            {mobileMenuOpen ? <X /> : <Menu />}
+          </button>
+        </div>
 
-        {mobileMenuOpen && (
-          <div className="fixed inset-0 bg-black z-40 flex flex-col justify-center items-center gap-8 md:hidden">
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-2xl font-display font-medium text-white"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-        )}
+        <div className={cn(
+          "fixed inset-0 bg-black/95 backdrop-blur-xl z-40 flex flex-col justify-center items-center gap-6 transition-all duration-300 md:hidden",
+          mobileMenuOpen ? "opacity-100 translate-x-0" : "opacity-0 translate-x-full pointer-events-none"
+        )}>
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={cn(
+                "text-2xl font-display font-medium transition-colors",
+                location === link.href ? "text-[#C8FF00]" : "text-white"
+              )}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
       </div>
     </header>
   );

@@ -1,26 +1,26 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle } from "lucide-react";
 import { Link } from "wouter";
+import { Navigation } from "@/components/Navigation";
+import { Search, Home, ArrowLeft } from "lucide-react";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-black p-4">
-      <Card className="w-full max-w-md bg-neutral-900 border-white/10">
-        <CardContent className="pt-6">
-          <div className="flex mb-4 gap-2">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <h1 className="text-2xl font-bold text-white">404 Page Not Found</h1>
-          </div>
-
-          <p className="mt-4 text-sm text-neutral-400">
-            Did you forget to add the page to the router?
-          </p>
-          
-          <Link href="/" className="mt-8 block w-full text-center px-4 py-2 bg-white text-black rounded font-medium hover:bg-neutral-200 transition-colors">
-            Return Home
+    <div className="min-h-screen bg-black text-white">
+      <Navigation />
+      <div className="pt-32 pb-20 px-4 flex flex-col items-center justify-center min-h-[70vh] text-center space-y-6">
+        <div className="text-8xl font-display font-bold text-neutral-800">404</div>
+        <h1 className="text-2xl font-display font-bold text-white">Página no encontrada</h1>
+        <p className="text-neutral-500 max-w-md">
+          La página que buscás no existe o fue movida. Probá buscando lo que necesitás.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+          <Link href="/search" className="flex items-center justify-center gap-2 px-6 py-3 bg-[#C8FF00] text-black rounded font-bold hover:bg-[#A3D600] transition-colors">
+            <Search className="w-4 h-4" /> Buscar productos
           </Link>
-        </CardContent>
-      </Card>
+          <Link href="/" className="flex items-center justify-center gap-2 px-6 py-3 border border-white/20 rounded font-medium text-neutral-300 hover:text-white hover:border-white transition-colors">
+            <Home className="w-4 h-4" /> Ir al inicio
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }

@@ -105,10 +105,10 @@ export default function Auth() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   required
-                  minLength={6}
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder="Mínimo 8 caracteres"
                   className="pl-10 pr-10 bg-neutral-900 border-neutral-700 text-white placeholder:text-neutral-500"
                   data-testid="input-password"
                 />
@@ -129,7 +129,7 @@ export default function Auth() {
               className="w-full bg-[#C8FF00] text-black font-bold hover:bg-[#b8ef00] h-11"
               data-testid="button-submit-auth"
             >
-              {isPending ? "Cargando..." : mode === "login" ? "Entrar" : "Crear cuenta"}
+              {isPending ? (mode === "login" ? "Entrando..." : "Creando cuenta...") : mode === "login" ? "Entrar" : "Crear cuenta"}
             </Button>
           </form>
 
