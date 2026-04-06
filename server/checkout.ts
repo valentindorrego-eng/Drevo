@@ -372,8 +372,10 @@ async function fanOutBrandOrders(orderId: string) {
     try {
       // Find brand's Tiendanube integration
       const [integration] = await db.select().from(brandIntegrations)
-        .where(eq(brandIntegrations.provider, "tiendanube"));
-      // TODO: filter by brandId when brandIntegrations has brandId column
+        .where(and(
+          eq(brandIntegrations.provider, "tiendanube"),
+          eq(brandIntegrations.brandId, subOrder.brandId)
+        ));
 
       if (!integration) {
         console.log(`No Tiendanube integration for brand ${subOrder.brandId}, skipping fan-out`);

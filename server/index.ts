@@ -55,8 +55,10 @@ app.use(
 
 // Patch for Passport 0.6+ compatibility with connect-pg-simple
 app.use((req, _res, next) => {
-  if (req.session) {
+  if (req.session && !req.session.regenerate) {
     (req.session as any).regenerate = (cb: (err?: any) => void) => { cb(); };
+  }
+  if (req.session && !req.session.save) {
     (req.session as any).save = (cb: (err?: any) => void) => { cb(); };
   }
   next();

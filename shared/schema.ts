@@ -103,9 +103,11 @@ export const searchQueries = pgTable("search_queries", {
 
 export const brandIntegrations = pgTable("brand_integrations", {
   id: uuid("id").primaryKey().defaultRandom(),
+  brandId: uuid("brand_id").references(() => brands.id),
   provider: text("provider").notNull(),
   storeId: text("store_id"),
   accessToken: text("access_token").notNull(),
+  storeName: text("store_name"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
