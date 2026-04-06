@@ -3,6 +3,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { Navigation } from "@/components/Navigation";
 import { useSearchProducts } from "@/hooks/use-search";
 import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/context/CartContext";
 import { ProductCard } from "@/components/ProductCard";
 import { Search as SearchIcon, Loader2, Sparkles, ShoppingBag, X, Ruler, Send, MessageSquare, RotateCcw, Clock, Camera, Trash2 } from "lucide-react";
 import { VisualSearchButton } from "@/components/VisualSearchButton";
@@ -40,7 +41,8 @@ export default function Search() {
   const searchParams = new URLSearchParams(window.location.search);
   const query = searchParams.get("q") || "";
   const { user } = useAuth();
-  
+  const { addItem } = useCart();
+
   const [inputValue, setInputValue] = useState(query);
   const [refinementInput, setRefinementInput] = useState("");
   const [sizeFilterEnabled, setSizeFilterEnabled] = useState(true);
@@ -139,14 +141,23 @@ export default function Search() {
     setSearchHistory([]);
   }, []);
 
-  const handleBuyOutfit = useCallback(async (items: any[]) => {
+  const handleBuyOutfit = useCallback((items: any[]) => {
     for (const item of items) {
-      if (item.externalUrl) {
-        const referralUrl = await trackClick(item.id, query);
-        window.open(referralUrl || item.externalUrl, "_blank", "noopener,noreferrer");
-      }
+      const variant = item.variants?.[0];
+      addItem({
+        id: item.id,
+        productId: item.id,
+        title: item.title || item.name,
+        price: item.salePrice || item.price,
+        image: item.images?.[0]?.url || item.imageUrl,
+        brandName: item.brandName || "DREVO",
+        externalUrl: item.externalUrl,
+        variantId: variant?.id,
+        variantTitle: variant?.title || "Único",
+      });
     }
-  }, [query]);
+    setLocation("/cart");
+  }, [addItem, setLocation]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
