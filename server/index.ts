@@ -38,9 +38,21 @@ const isProduction = process.env.NODE_ENV === "production";
 if (isProduction) {
   app.set("trust proxy", 1);
 }
+// Pre-create session table to avoid connect-pg-simple's table.sql file dependency
+// which breaks in bundled production builds (esbuild doesn't include .sql files)
+pool.query(`
+  CREATE TABLE IF NOT EXISTS "session" (
+    "sid" varchar NOT NULL COLLATE "default",
+    "sess" json NOT NULL,
+    "expire" timestamp(6) NOT NULL,
+    CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+  ) WITH (OIDS=FALSE);
+  CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+`).catch(err => console.error("Failed to create session table:", err));
+
 app.use(
   session({
-    store: new PgStore({ pool, createTableIfMissing: true }),
+    store: new PgStore({ pool }),
     secret: process.env.SESSION_SECRET || (isProduction ? (() => { throw new Error("SESSION_SECRET is required in production"); })() : "drevo-dev-secret"),
     resave: false,
     saveUninitialized: false,
