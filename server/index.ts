@@ -28,6 +28,11 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Health check endpoint for Railway
+app.get("/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 const PgStore = connectPgSimple(session);
 const isProduction = process.env.NODE_ENV === "production";
 if (isProduction) {
