@@ -63,7 +63,7 @@ export async function registerRoutes(
       }
       const passwordHash = await bcrypt.hash(password, 10);
       const user = await storage.createUser({ email, passwordHash, displayName: displayName || null });
-      req.login(user, (err) => {
+      req.login(user, { keepSessionInfo: true }, (err) => {
         if (err) return res.status(500).json({ message: "Error al iniciar sesión" });
         const { passwordHash: _, ...safeUser } = user;
         return res.json(safeUser);
@@ -78,7 +78,7 @@ export async function registerRoutes(
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) return res.status(500).json({ message: "Error interno" });
       if (!user) return res.status(401).json({ message: info?.message || "Credenciales inválidas" });
-      req.login(user, (loginErr) => {
+      req.login(user, { keepSessionInfo: true }, (loginErr) => {
         if (loginErr) return res.status(500).json({ message: "Error al iniciar sesión" });
         const { passwordHash: _, ...safeUser } = user;
         return res.json(safeUser);
