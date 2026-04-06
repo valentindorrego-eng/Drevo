@@ -63,11 +63,9 @@ export async function registerRoutes(
       }
       const passwordHash = await bcrypt.hash(password, 10);
       const user = await storage.createUser({ email, passwordHash, displayName: displayName || null });
-      req.login(user, { keepSessionInfo: true }, (err) => {
-        if (err) {
-          console.error("Register req.login error:", err);
-          return res.status(500).json({ message: "Error al iniciar sesión", debug: String(err) });
-        }
+      (req.session as any).passport = { user: user.id };
+      req.session.save((saveErr) => {
+        if (saveErr) console.error("Session save error:", saveErr);
         const { passwordHash: _, ...safeUser } = user;
         return res.json(safeUser);
       });
@@ -79,16 +77,11 @@ export async function registerRoutes(
 
   app.post("/api/auth/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
-      if (err) {
-        console.error("Login authenticate error:", err);
-        return res.status(500).json({ message: "Error interno", debug: String(err) });
-      }
+      if (err) return res.status(500).json({ message: "Error interno" });
       if (!user) return res.status(401).json({ message: info?.message || "Credenciales inválidas" });
-      req.login(user, { keepSessionInfo: true }, (loginErr) => {
-        if (loginErr) {
-          console.error("Login req.login error:", loginErr);
-          return res.status(500).json({ message: "Error al iniciar sesión", debug: String(loginErr) });
-        }
+      (req.session as any).passport = { user: user.id };
+      req.session.save((saveErr) => {
+        if (saveErr) console.error("Session save error:", saveErr);
         const { passwordHash: _, ...safeUser } = user;
         return res.json(safeUser);
       });
