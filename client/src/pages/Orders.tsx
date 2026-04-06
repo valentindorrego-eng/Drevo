@@ -58,7 +58,7 @@ export default function Orders() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-background text-foreground">
         <Navigation />
         <div className="pt-32 flex justify-center">
           <Loader2 className="w-8 h-8 text-[#C8FF00] animate-spin" />
@@ -68,12 +68,12 @@ export default function Orders() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navigation />
 
       <div className="pt-24 pb-20 px-4 md:px-8 max-w-3xl mx-auto">
         <Link href="/profile">
-          <span className="inline-flex items-center gap-2 text-sm text-neutral-400 hover:text-white transition-colors mb-6 cursor-pointer" data-testid="link-back-profile">
+          <span className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6 cursor-pointer" data-testid="link-back-profile">
             <ArrowLeft className="w-4 h-4" /> Mi perfil
           </span>
         </Link>
@@ -82,12 +82,12 @@ export default function Orders() {
 
         {orders.length === 0 ? (
           <div className="flex flex-col items-center justify-center min-h-[40vh] text-center space-y-6">
-            <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center">
-              <ShoppingBag className="w-10 h-10 text-neutral-400" />
+            <div className="w-20 h-20 bg-card rounded-full flex items-center justify-center">
+              <ShoppingBag className="w-10 h-10 text-muted-foreground" />
             </div>
-            <p className="text-neutral-400 text-lg" data-testid="text-no-orders">Todavía no hiciste ninguna compra</p>
+            <p className="text-muted-foreground text-lg" data-testid="text-no-orders">Todavía no hiciste ninguna compra</p>
             <Link href="/search">
-              <span className="px-8 py-3 bg-white text-black font-semibold rounded-lg hover:bg-neutral-200 transition-colors cursor-pointer" data-testid="link-explore-orders">
+              <span className="px-8 py-3 bg-foreground text-background font-semibold rounded-lg hover:bg-foreground/80 transition-colors cursor-pointer" data-testid="link-explore-orders">
                 Explorar productos
               </span>
             </Link>
@@ -106,7 +106,7 @@ export default function Orders() {
                 >
                   <Link href={`/order/${order.id}`}>
                     <div
-                      className="border border-white/10 rounded-xl p-5 bg-white/[0.02] hover:border-white/20 transition-colors cursor-pointer group"
+                      className="border border-border rounded-xl p-5 bg-card hover:border-border transition-colors cursor-pointer group"
                       data-testid={`order-card-${order.id}`}
                     >
                       <div className="flex items-center justify-between mb-3">
@@ -118,10 +118,10 @@ export default function Orders() {
                             <p className="font-semibold text-sm" data-testid={`text-order-number-${order.id}`}>
                               #{order.orderNumber}
                             </p>
-                            <p className="text-xs text-neutral-500">{formatDate(order.createdAt)}</p>
+                            <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
                           </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-neutral-600 group-hover:text-white transition-colors" />
+                        <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
                       </div>
 
                       <div className="flex items-center justify-between">

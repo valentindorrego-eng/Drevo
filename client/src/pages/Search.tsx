@@ -149,13 +149,13 @@ export default function Search() {
   }, [query]);
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navigation />
 
       <div className="pt-24 pb-12 px-4 md:px-8 max-w-[1600px] mx-auto">
         <div className="lg:flex lg:gap-8">
           <aside className="hidden lg:block w-80 flex-shrink-0">
-            <div className="sticky top-28 space-y-6 p-6 bg-white/[0.02] border border-white/5 rounded-xl">
+            <div className="sticky top-28 space-y-6 p-6 bg-card border border-border rounded-xl">
               <RefinementPanelContent
                 query={query}
                 displayResults={displayResults}
@@ -175,12 +175,12 @@ export default function Search() {
             <div className="mb-8 lg:hidden">
               <div className="flex gap-2">
                 <form onSubmit={handleSubmit} className="relative flex-1">
-                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                   <input
                     ref={searchInputRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
+                    className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-12 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
                     placeholder="Buscá por estilo, ocasión, vibe..."
                     data-testid="input-search"
                     enterKeyHint="search"
@@ -189,7 +189,7 @@ export default function Search() {
                     <button
                       type="button"
                       onClick={() => setInputValue("")}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       data-testid="button-clear-search"
                     >
                       <X className="w-5 h-5" />
@@ -209,17 +209,17 @@ export default function Search() {
               {displayResults?.intent && (
                 <div className="mt-3 flex flex-wrap gap-2 overflow-x-auto pb-2">
                   {displayResults.intent.style_tags?.map((tag: string) => (
-                    <span key={tag} className="text-xs px-2 py-1 bg-white/10 text-white rounded-full border border-white/10 capitalize whitespace-nowrap">
+                    <span key={tag} className="text-xs px-2 py-1 bg-card text-foreground rounded-full border border-border capitalize whitespace-nowrap">
                       {tag}
                     </span>
                   ))}
                   {displayResults.intent.colors?.primary?.map((c: string) => (
-                    <span key={c} className="text-xs px-2 py-1 bg-white/10 text-white rounded-full border border-white/10 capitalize whitespace-nowrap">
+                    <span key={c} className="text-xs px-2 py-1 bg-card text-foreground rounded-full border border-border capitalize whitespace-nowrap">
                       {c}
                     </span>
                   ))}
                   {displayResults.intent.occasion && (
-                    <span className="text-xs px-2 py-1 bg-white/10 text-white rounded-full border border-white/10 capitalize whitespace-nowrap">
+                    <span className="text-xs px-2 py-1 bg-card text-foreground rounded-full border border-border capitalize whitespace-nowrap">
                       {displayResults.intent.occasion}
                     </span>
                   )}
@@ -230,12 +230,12 @@ export default function Search() {
             <div className="hidden lg:block mb-8 max-w-3xl">
               <div className="flex gap-2">
                 <form onSubmit={handleSubmit} className="relative flex-1">
-                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                   <input
                     ref={searchInputDesktopRef}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
+                    className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-12 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
                     placeholder="Buscá por estilo, ocasión, vibe..."
                     data-testid="input-search-desktop"
                   />
@@ -243,7 +243,7 @@ export default function Search() {
                     <button
                       type="button"
                       onClick={() => setInputValue("")}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -263,7 +263,7 @@ export default function Search() {
             {isPending ? (
               <div className="flex flex-col items-center justify-center py-32 space-y-6">
                 <Loader2 className="w-10 h-10 text-[#C8FF00] animate-spin" />
-                <p className="text-neutral-500 animate-pulse font-display">Curando selección...</p>
+                <p className="text-muted-foreground animate-pulse font-display">Curando selección...</p>
               </div>
             ) : displayResults ? (
               <div className="space-y-16">
@@ -272,7 +272,7 @@ export default function Search() {
                   <motion.div 
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="bg-neutral-900/40 border border-white/10 p-8 rounded-2xl relative overflow-hidden"
+                    className="bg-card border border-border p-8 rounded-2xl relative overflow-hidden"
                   >
                     <div className="absolute top-0 right-0 p-8 opacity-10">
                       <Sparkles className="w-32 h-32 text-[#C8FF00]" />
@@ -313,9 +313,9 @@ export default function Search() {
                 )}
 
                 <div>
-                  <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
+                  <div className="flex items-center justify-between mb-8 border-b border-border pb-4">
                     <h3 className="text-2xl font-display font-bold tracking-tight">Explorar Resultados</h3>
-                    <span className="text-sm text-neutral-500 font-medium">{displayResults.results.length} productos encontrados</span>
+                    <span className="text-sm text-muted-foreground font-medium">{displayResults.results.length} productos encontrados</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-12">
                     {displayResults.results.map((product: any, idx: number) => (
@@ -325,11 +325,11 @@ export default function Search() {
                 </div>
                 
                 {displayResults.results.length === 0 && (
-                  <div className="text-center py-32 bg-neutral-900/20 rounded-2xl border border-white/5">
-                    <p className="text-neutral-500 text-lg mb-6">No encontramos productos exactos para esa descripción.</p>
-                    <button 
+                  <div className="text-center py-32 bg-card rounded-2xl border border-border">
+                    <p className="text-muted-foreground text-lg mb-6">No encontramos productos exactos para esa descripción.</p>
+                    <button
                       onClick={handleNewSearch}
-                      className="bg-white text-black px-8 py-3 rounded-full font-bold hover:bg-neutral-200 transition-all"
+                      className="bg-foreground text-background px-8 py-3 rounded-full font-bold hover:bg-neutral-200 transition-all"
                       data-testid="button-try-again"
                     >
                       Intentar otra búsqueda
@@ -340,19 +340,19 @@ export default function Search() {
             ) : (
               <div className="py-16 space-y-8">
                 <div className="text-center opacity-30">
-                  <SearchIcon className="w-16 h-16 mx-auto mb-6 text-neutral-700" />
+                  <SearchIcon className="w-16 h-16 mx-auto mb-6 text-muted-foreground" />
                   <p className="text-xl font-display">Ingresá una búsqueda para comenzar tu viaje de estilo.</p>
                 </div>
 
                 {searchHistory.length > 0 && (
                   <div className="max-w-md mx-auto">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
+                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                         <Clock className="w-4 h-4" /> Búsquedas recientes
                       </h3>
                       <button
                         onClick={handleClearHistory}
-                        className="text-xs text-neutral-600 hover:text-neutral-400 flex items-center gap-1 transition-colors"
+                        className="text-xs text-muted-foreground hover:text-muted-foreground flex items-center gap-1 transition-colors"
                         data-testid="button-clear-history"
                       >
                         <Trash2 className="w-3 h-3" /> Limpiar
@@ -363,12 +363,12 @@ export default function Search() {
                         <button
                           key={`${q}-${i}`}
                           onClick={() => handleHistoryClick(q)}
-                          className="w-full text-left flex items-center gap-3 px-4 py-3 bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 rounded-xl transition-colors group"
+                          className="w-full text-left flex items-center gap-3 px-4 py-3 bg-card hover:bg-secondary border border-border rounded-xl transition-colors group"
                           data-testid={`button-history-${i}`}
                         >
-                          <Clock className="w-4 h-4 text-neutral-600 group-hover:text-neutral-400 flex-shrink-0" />
-                          <span className="text-neutral-300 group-hover:text-white text-sm truncate">{q}</span>
-                          <Send className="w-3 h-3 text-neutral-700 group-hover:text-[#C8FF00] ml-auto flex-shrink-0" />
+                          <Clock className="w-4 h-4 text-muted-foreground group-hover:text-muted-foreground flex-shrink-0" />
+                          <span className="text-neutral-300 group-hover:text-foreground text-sm truncate">{q}</span>
+                          <Send className="w-3 h-3 text-muted-foreground group-hover:text-[#C8FF00] ml-auto flex-shrink-0" />
                         </button>
                       ))}
                     </div>
@@ -390,7 +390,7 @@ export default function Search() {
                   <MessageSquare className="w-6 h-6" />
                 </button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="bg-black border-white/10 text-white rounded-t-2xl max-h-[70vh] overflow-y-auto">
+              <SheetContent side="bottom" className="bg-background border-border text-foreground rounded-t-2xl max-h-[70vh] overflow-y-auto">
                 <div className="p-4">
                   <RefinementPanelContent
                     query={query}
@@ -440,13 +440,13 @@ function RefinementPanelContent({
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-sm font-semibold text-neutral-300 mb-2 uppercase tracking-wider">Búsqueda actual</h3>
-        <p className="text-white font-medium">{query}</p>
+        <h3 className="text-sm font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Búsqueda actual</h3>
+        <p className="text-foreground font-medium">{query}</p>
       </div>
 
       {displayResults?.intent && (
         <div>
-          <h3 className="text-sm font-semibold text-neutral-300 mb-2 uppercase tracking-wider flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-muted-foreground mb-2 uppercase tracking-wider flex items-center gap-2">
             <Sparkles className="w-3 h-3 text-[#C8FF00]" /> Filtros detectados
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -456,17 +456,17 @@ function RefinementPanelContent({
               </span>
             )}
             {displayResults.intent.occasion && (
-              <span className="text-xs px-2 py-1 bg-white/10 text-white rounded-full border border-white/10">
+              <span className="text-xs px-2 py-1 bg-card text-foreground rounded-full border border-border">
                 {displayResults.intent.occasion}
               </span>
             )}
             {displayResults.intent.style_tags?.map((tag: string) => (
-              <span key={tag} className="text-xs px-2 py-1 bg-white/10 text-white rounded-full border border-white/10 capitalize">
+              <span key={tag} className="text-xs px-2 py-1 bg-card text-foreground rounded-full border border-border capitalize">
                 {tag}
               </span>
             ))}
             {displayResults.intent.colors?.primary?.map((c: string) => (
-              <span key={c} className="text-xs px-2 py-1 bg-white/10 text-white rounded-full border border-white/10 capitalize">
+              <span key={c} className="text-xs px-2 py-1 bg-card text-foreground rounded-full border border-border capitalize">
                 {c}
               </span>
             ))}
@@ -477,7 +477,7 @@ function RefinementPanelContent({
               className={`mt-2 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                 sizeFilterEnabled
                   ? "bg-[#C8FF00]/15 text-[#C8FF00] border border-[#C8FF00]/30"
-                  : "bg-white/5 text-neutral-400 border border-white/10"
+                  : "bg-card text-muted-foreground border border-border"
               }`}
               data-testid="button-toggle-size-filter"
             >
@@ -490,10 +490,10 @@ function RefinementPanelContent({
 
       {refinements.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-neutral-300 mb-2 uppercase tracking-wider">Refinamientos</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Refinamientos</h3>
           <div className="space-y-2">
             {refinements.map((r, i) => (
-              <div key={i} className="text-xs px-3 py-2 bg-white/5 rounded-lg text-neutral-300 border border-white/5">
+              <div key={i} className="text-xs px-3 py-2 bg-card rounded-lg text-neutral-300 border border-border">
                 + {r}
               </div>
             ))}
@@ -507,7 +507,7 @@ function RefinementPanelContent({
           value={refinementInput}
           onChange={(e) => onRefinementInputChange(e.target.value)}
           placeholder="Refinar búsqueda..."
-          className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+          className="flex-1 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
           data-testid="input-refine-search"
         />
         <button
@@ -522,7 +522,7 @@ function RefinementPanelContent({
 
       <button
         onClick={onNewSearch}
-        className="w-full flex items-center justify-center gap-2 text-sm text-neutral-500 hover:text-white py-2 border border-white/10 rounded-lg transition-colors"
+        className="w-full flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground py-2 border border-border rounded-lg transition-colors"
         data-testid="button-new-search"
       >
         <RotateCcw className="w-3 h-3" /> Nueva búsqueda
@@ -531,13 +531,13 @@ function RefinementPanelContent({
   );
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navigation />
 
       <div className="pt-24 pb-12 px-4 md:px-8 max-w-[1600px] mx-auto">
         <div className="lg:flex lg:gap-8">
           <aside className="hidden lg:block w-80 flex-shrink-0">
-            <div className="sticky top-28 space-y-6 p-6 bg-white/[0.02] border border-white/5 rounded-xl">
+            <div className="sticky top-28 space-y-6 p-6 bg-card border border-border rounded-xl">
               <RefinementPanel />
             </div>
           </aside>
@@ -546,11 +546,11 @@ function RefinementPanelContent({
             <div className="mb-8 lg:hidden">
               <div className="flex gap-2">
                 <form onSubmit={handleSubmit} className="relative flex-1">
-                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                   <input
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
+                    className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-12 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
                     placeholder="Refiná tu búsqueda..."
                     data-testid="input-search"
                   />
@@ -558,7 +558,7 @@ function RefinementPanelContent({
                     <button
                       type="button"
                       onClick={() => setInputValue("")}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       data-testid="button-clear-search"
                     >
                       <X className="w-5 h-5" />
@@ -571,17 +571,17 @@ function RefinementPanelContent({
               {searchResults?.intent && (
                 <div className="mt-3 flex flex-wrap gap-2 overflow-x-auto pb-2">
                   {searchResults.intent.style_tags?.map((tag: string) => (
-                    <span key={tag} className="text-xs px-2 py-1 bg-white/10 text-white rounded-full border border-white/10 capitalize whitespace-nowrap">
+                    <span key={tag} className="text-xs px-2 py-1 bg-card text-foreground rounded-full border border-border capitalize whitespace-nowrap">
                       {tag}
                     </span>
                   ))}
                   {searchResults.intent.colors?.primary?.map((c: string) => (
-                    <span key={c} className="text-xs px-2 py-1 bg-white/10 text-white rounded-full border border-white/10 capitalize whitespace-nowrap">
+                    <span key={c} className="text-xs px-2 py-1 bg-card text-foreground rounded-full border border-border capitalize whitespace-nowrap">
                       {c}
                     </span>
                   ))}
                   {searchResults.intent.occasion && (
-                    <span className="text-xs px-2 py-1 bg-white/10 text-white rounded-full border border-white/10 capitalize whitespace-nowrap">
+                    <span className="text-xs px-2 py-1 bg-card text-foreground rounded-full border border-border capitalize whitespace-nowrap">
                       {searchResults.intent.occasion}
                     </span>
                   )}
@@ -592,11 +592,11 @@ function RefinementPanelContent({
             <div className="hidden lg:block mb-8 max-w-3xl">
               <div className="flex gap-2">
                 <form onSubmit={handleSubmit} className="relative flex-1">
-                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 w-5 h-5" />
+                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
                   <input
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    className="w-full bg-neutral-900/50 border border-white/10 rounded-xl py-4 pl-12 pr-12 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
+                    className="w-full bg-card border border-border rounded-xl py-4 pl-12 pr-12 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-white/20 transition-all text-lg"
                     placeholder="Refiná tu búsqueda..."
                     data-testid="input-search-desktop"
                   />
@@ -604,7 +604,7 @@ function RefinementPanelContent({
                     <button
                       type="button"
                       onClick={() => setInputValue("")}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -617,8 +617,8 @@ function RefinementPanelContent({
             {isPending ? (
               <div className="flex flex-col items-center justify-center py-32 space-y-6">
                 <Loader2 className="w-10 h-10 text-[#C8FF00] animate-spin" />
-                <p className="text-neutral-500 animate-pulse font-display">Curando selección...</p>
-                <p className="text-neutral-600 text-sm">Analizando tu búsqueda con IA</p>
+                <p className="text-muted-foreground animate-pulse font-display">Curando selección...</p>
+                <p className="text-muted-foreground text-sm">Analizando tu búsqueda con IA</p>
               </div>
             ) : searchResults ? (
               <div className="space-y-16">
@@ -627,7 +627,7 @@ function RefinementPanelContent({
                   <motion.div 
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="bg-neutral-900/40 border border-white/10 p-8 rounded-2xl relative overflow-hidden"
+                    className="bg-card border border-border p-8 rounded-2xl relative overflow-hidden"
                   >
                     <div className="absolute top-0 right-0 p-8 opacity-10">
                       <Sparkles className="w-32 h-32 text-[#C8FF00]" />
@@ -668,9 +668,9 @@ function RefinementPanelContent({
                 )}
 
                 <div>
-                  <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
+                  <div className="flex items-center justify-between mb-8 border-b border-border pb-4">
                     <h3 className="text-2xl font-display font-bold tracking-tight">Explorar Resultados</h3>
-                    <span className="text-sm text-neutral-500 font-medium">{searchResults.results.length} productos encontrados</span>
+                    <span className="text-sm text-muted-foreground font-medium">{searchResults.results.length} productos encontrados</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-12">
                     {searchResults.results.map((product: any, idx: number) => (
@@ -680,22 +680,22 @@ function RefinementPanelContent({
                 </div>
                 
                 {searchResults.results.length === 0 && (
-                  <div className="text-center py-24 bg-neutral-900/20 rounded-2xl border border-white/5 space-y-6">
-                    <SearchIcon className="w-12 h-12 mx-auto text-neutral-700" />
+                  <div className="text-center py-24 bg-card rounded-2xl border border-border space-y-6">
+                    <SearchIcon className="w-12 h-12 mx-auto text-muted-foreground" />
                     <div className="space-y-2">
-                      <p className="text-neutral-400 text-lg">No encontramos productos para esa descripción.</p>
-                      <p className="text-neutral-600 text-sm max-w-md mx-auto">Probá con términos más generales o conectá más tiendas para ampliar el catálogo.</p>
+                      <p className="text-muted-foreground text-lg">No encontramos productos para esa descripción.</p>
+                      <p className="text-muted-foreground text-sm max-w-md mx-auto">Probá con términos más generales o conectá más tiendas para ampliar el catálogo.</p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
                       <button
                         onClick={handleNewSearch}
-                        className="bg-white text-black px-8 py-3 rounded-full font-bold hover:bg-neutral-200 transition-all"
+                        className="bg-foreground text-background px-8 py-3 rounded-full font-bold hover:bg-neutral-200 transition-all"
                         data-testid="button-try-again"
                       >
                         Nueva búsqueda
                       </button>
                       <Link href="/connect">
-                        <span className="px-8 py-3 border border-white/20 rounded-full font-medium text-neutral-300 hover:text-white hover:border-white transition-all inline-block cursor-pointer">
+                        <span className="px-8 py-3 border border-border rounded-full font-medium text-neutral-300 hover:text-foreground hover:border-foreground transition-all inline-block cursor-pointer">
                           Conectar tienda
                         </span>
                       </Link>
@@ -706,13 +706,13 @@ function RefinementPanelContent({
             ) : (
               <div className="py-20 max-w-xl mx-auto space-y-10">
                 <div className="text-center space-y-3">
-                  <SearchIcon className="w-12 h-12 mx-auto text-neutral-700" />
+                  <SearchIcon className="w-12 h-12 mx-auto text-muted-foreground" />
                   <h2 className="text-2xl font-display font-bold text-neutral-300">¿Qué estás buscando?</h2>
-                  <p className="text-neutral-600">Describí lo que necesitás y la IA encuentra los mejores productos.</p>
+                  <p className="text-muted-foreground">Describí lo que necesitás y la IA encuentra los mejores productos.</p>
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">Probá algo como</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Probá algo como</p>
                   <div className="flex flex-wrap gap-2">
                     {["Outfit para salir de noche", "Remera negra minimalista", "Look casual de verano", "Campera urbana hombre"].map((suggestion) => (
                       <button
@@ -721,7 +721,7 @@ function RefinementPanelContent({
                           setInputValue(suggestion);
                           setLocation(`/search?q=${encodeURIComponent(suggestion)}`);
                         }}
-                        className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm text-neutral-400 hover:text-white hover:border-white/30 transition-all"
+                        className="px-4 py-2 bg-card border border-border rounded-full text-sm text-muted-foreground hover:text-foreground hover:border-white/30 transition-all"
                       >
                         {suggestion}
                       </button>
@@ -731,7 +731,7 @@ function RefinementPanelContent({
 
                 {getSearchHistory().length > 0 && (
                   <div className="space-y-3">
-                    <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium flex items-center gap-2">
                       <Clock className="w-3 h-3" /> Búsquedas recientes
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -742,7 +742,7 @@ function RefinementPanelContent({
                             setInputValue(h);
                             setLocation(`/search?q=${encodeURIComponent(h)}`);
                           }}
-                          className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm text-neutral-400 hover:text-white hover:border-white/30 transition-all"
+                          className="px-4 py-2 bg-card border border-border rounded-full text-sm text-muted-foreground hover:text-foreground hover:border-white/30 transition-all"
                         >
                           {h}
                         </button>
@@ -765,7 +765,7 @@ function RefinementPanelContent({
                 <MessageSquare className="w-6 h-6" />
               </button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="bg-black border-white/10 text-white rounded-t-2xl max-h-[70vh] overflow-y-auto">
+            <SheetContent side="bottom" className="bg-background border-border text-foreground rounded-t-2xl max-h-[70vh] overflow-y-auto">
               <div className="p-4">
                 <RefinementPanel />
               </div>

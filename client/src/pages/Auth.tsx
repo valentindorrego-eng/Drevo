@@ -50,30 +50,30 @@ export default function Auth() {
   const isPending = login.isPending || register.isPending;
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navigation />
       <div className="pt-32 pb-20 px-4 flex justify-center">
         <div className="w-full max-w-md">
           <h1 className="text-3xl font-display font-bold mb-2 text-center" data-testid="text-auth-title">
             {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
           </h1>
-          <p className="text-neutral-400 text-center mb-8">
+          <p className="text-muted-foreground text-center mb-8">
             {mode === "login" ? "Ingresá a tu cuenta DREVO" : "Unite a DREVO"}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "register" && (
               <div>
-                <Label htmlFor="displayName" className="text-neutral-300 text-sm">Nombre (opcional)</Label>
+                <Label htmlFor="displayName" className="text-muted-foreground text-sm">Nombre (opcional)</Label>
                 <div className="relative mt-1">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="displayName"
                     type="text"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="Tu nombre"
-                    className="pl-10 bg-neutral-900 border-neutral-700 text-white placeholder:text-neutral-500"
+                    className="pl-10 bg-card border-border text-foreground placeholder:text-muted-foreground"
                     data-testid="input-display-name"
                   />
                 </div>
@@ -81,9 +81,9 @@ export default function Auth() {
             )}
 
             <div>
-              <Label htmlFor="email" className="text-neutral-300 text-sm">Email</Label>
+              <Label htmlFor="email" className="text-muted-foreground text-sm">Email</Label>
               <div className="relative mt-1">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
@@ -91,16 +91,16 @@ export default function Auth() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tu@email.com"
-                  className="pl-10 bg-neutral-900 border-neutral-700 text-white placeholder:text-neutral-500"
+                  className="pl-10 bg-card border-border text-foreground placeholder:text-muted-foreground"
                   data-testid="input-email"
                 />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="password" className="text-neutral-300 text-sm">Contraseña</Label>
+              <Label htmlFor="password" className="text-muted-foreground text-sm">Contraseña</Label>
               <div className="relative mt-1">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
@@ -109,13 +109,13 @@ export default function Auth() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Mínimo 8 caracteres"
-                  className="pl-10 pr-10 bg-neutral-900 border-neutral-700 text-white placeholder:text-neutral-500"
+                  className="pl-10 pr-10 bg-card border-border text-foreground placeholder:text-muted-foreground"
                   data-testid="input-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   data-testid="button-toggle-password"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -136,14 +136,14 @@ export default function Auth() {
           {authConfig?.googleEnabled && (
             <>
               <div className="my-6 flex items-center gap-3">
-                <div className="flex-1 h-px bg-neutral-800" />
-                <span className="text-neutral-500 text-xs">o</span>
-                <div className="flex-1 h-px bg-neutral-800" />
+                <div className="flex-1 h-px bg-secondary" />
+                <span className="text-muted-foreground text-xs">o</span>
+                <div className="flex-1 h-px bg-secondary" />
               </div>
 
               <a
                 href="/auth/google"
-                className="flex items-center justify-center gap-3 w-full h-11 rounded-md border border-neutral-700 bg-neutral-900 text-white font-medium hover:bg-neutral-800 transition-colors"
+                className="flex items-center justify-center gap-3 w-full h-11 rounded-md border border-border bg-card text-foreground font-medium hover:bg-secondary transition-colors"
                 data-testid="button-google-auth"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -158,7 +158,7 @@ export default function Auth() {
           )}
 
           <div className="mt-6 text-center">
-            <p className="text-neutral-400 text-sm">
+            <p className="text-muted-foreground text-sm">
               {mode === "login" ? "¿No tenés cuenta?" : "¿Ya tenés cuenta?"}{" "}
               <button
                 onClick={() => setMode(mode === "login" ? "register" : "login")}

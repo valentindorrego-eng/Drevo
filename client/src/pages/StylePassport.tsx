@@ -84,7 +84,7 @@ export default function StylePassport() {
   const stepIcons = [<Palette key={0} className="w-5 h-5" />, <Calendar key={1} className="w-5 h-5" />, <DollarSign key={2} className="w-5 h-5" />];
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-12 max-w-2xl mx-auto w-full">
         <div className="w-full mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -94,7 +94,7 @@ export default function StylePassport() {
             </div>
             <button
               onClick={() => setLocation("/")}
-              className="flex items-center gap-1 text-neutral-400 hover:text-white transition-colors text-sm"
+              className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors text-sm"
               data-testid="button-passport-skip"
             >
               Omitir <X className="w-4 h-4" />
@@ -102,7 +102,7 @@ export default function StylePassport() {
           </div>
           <div className="flex gap-2 mb-8">
             {[0, 1, 2].map(i => (
-              <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= step ? "bg-[#C8FF00]" : "bg-white/10"}`} />
+              <div key={i} className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= step ? "bg-[#C8FF00]" : "bg-border"}`} />
             ))}
           </div>
         </div>
@@ -120,7 +120,7 @@ export default function StylePassport() {
                 <h1 className="text-3xl md:text-4xl font-display font-bold" data-testid="text-passport-title-vibes">
                   ¿Cómo te describirías?
                 </h1>
-                <p className="text-neutral-400">Elegí todos los que te representen.</p>
+                <p className="text-muted-foreground">Elegí todos los que te representen.</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {VIBES.map(v => (
@@ -131,7 +131,7 @@ export default function StylePassport() {
                     className={`p-4 rounded-xl border text-left transition-all ${
                       selectedVibes.includes(v.id)
                         ? "border-[#C8FF00] bg-[#C8FF00]/10 text-white"
-                        : "border-white/10 bg-white/5 text-neutral-300 hover:border-white/30"
+                        : "border-border bg-card text-neutral-300 hover:border-border"
                     }`}
                   >
                     <span className="text-2xl mb-2 block">{v.icon}</span>
@@ -154,7 +154,7 @@ export default function StylePassport() {
                 <h1 className="text-3xl md:text-4xl font-display font-bold" data-testid="text-passport-title-ocasiones">
                   ¿Para qué ocasiones comprás más?
                 </h1>
-                <p className="text-neutral-400">Elegí todas las que apliquen.</p>
+                <p className="text-muted-foreground">Elegí todas las que apliquen.</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {OCASIONES.map(o => (
@@ -165,7 +165,7 @@ export default function StylePassport() {
                     className={`p-4 rounded-xl border text-left transition-all ${
                       selectedOcasiones.includes(o.id)
                         ? "border-[#C8FF00] bg-[#C8FF00]/10 text-white"
-                        : "border-white/10 bg-white/5 text-neutral-300 hover:border-white/30"
+                        : "border-border bg-card text-neutral-300 hover:border-border"
                     }`}
                   >
                     <span className="font-medium">{o.label}</span>
@@ -187,7 +187,7 @@ export default function StylePassport() {
                 <h1 className="text-3xl md:text-4xl font-display font-bold" data-testid="text-passport-title-presupuesto">
                   ¿Cuánto solés gastar por prenda?
                 </h1>
-                <p className="text-neutral-400">Elegí tu rango habitual.</p>
+                <p className="text-muted-foreground">Elegí tu rango habitual.</p>
               </div>
               <div className="grid grid-cols-1 gap-3">
                 {PRESUPUESTOS.map(p => (
@@ -198,7 +198,7 @@ export default function StylePassport() {
                     className={`p-5 rounded-xl border text-left transition-all flex items-center justify-between ${
                       selectedPresupuesto === p.id
                         ? "border-[#C8FF00] bg-[#C8FF00]/10 text-white"
-                        : "border-white/10 bg-white/5 text-neutral-300 hover:border-white/30"
+                        : "border-border bg-card text-neutral-300 hover:border-border"
                     }`}
                   >
                     <span className="font-medium text-lg">{p.label}</span>
@@ -214,7 +214,7 @@ export default function StylePassport() {
           {step > 0 ? (
             <button
               onClick={() => setStep(prev => prev - 1)}
-              className="flex items-center gap-2 text-neutral-400 hover:text-white transition-colors"
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
               data-testid="button-passport-back"
             >
               <ArrowLeft className="w-4 h-4" /> Anterior
@@ -229,7 +229,7 @@ export default function StylePassport() {
             className={`flex items-center gap-2 px-8 py-4 rounded-full font-bold text-lg transition-all ${
               canProceed
                 ? "bg-[#C8FF00] text-black hover:bg-[#A3D600]"
-                : "bg-white/10 text-neutral-600 cursor-not-allowed"
+                : "bg-border text-muted-foreground cursor-not-allowed"
             }`}
           >
             {savePassport.isPending ? (

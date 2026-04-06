@@ -47,22 +47,22 @@ export function Navigation() {
 
         <nav className="hidden md:flex items-center gap-8">
           <Link href="/search" data-testid="link-nav-search" className={cn(
-            "text-sm font-medium transition-colors hover:text-white",
-            location === "/search" ? "text-white" : "text-neutral-400"
+            "text-sm font-medium transition-colors hover:text-foreground",
+            location === "/search" ? "text-foreground" : "text-muted-foreground"
           )}>
             Búsqueda AI
           </Link>
           <Link href="/connect" data-testid="link-nav-connect" className={cn(
-            "text-sm font-medium transition-colors hover:text-white flex items-center gap-1.5",
-            location === "/connect" ? "text-white" : "text-neutral-400"
+            "text-sm font-medium transition-colors hover:text-foreground flex items-center gap-1.5",
+            location === "/connect" ? "text-foreground" : "text-muted-foreground"
           )}>
             <Plug className="w-3.5 h-3.5" />
             <span>Conectar tienda</span>
           </Link>
           {isAuthenticated && (
             <Link href="/collections" data-testid="link-nav-collections" className={cn(
-              "text-sm font-medium transition-colors hover:text-white flex items-center gap-1.5",
-              location === "/collections" ? "text-white" : "text-neutral-400"
+              "text-sm font-medium transition-colors hover:text-foreground flex items-center gap-1.5",
+              location === "/collections" ? "text-foreground" : "text-muted-foreground"
             )}>
               <Bookmark className="w-3.5 h-3.5" />
               <span>Guardados</span>
@@ -70,8 +70,8 @@ export function Navigation() {
           )}
           {isAuthenticated && (
             <Link href="/orders" data-testid="link-nav-orders" className={cn(
-              "text-sm font-medium transition-colors hover:text-white flex items-center gap-1.5",
-              location === "/orders" ? "text-white" : "text-neutral-400"
+              "text-sm font-medium transition-colors hover:text-foreground flex items-center gap-1.5",
+              location === "/orders" ? "text-foreground" : "text-muted-foreground"
             )}>
               <Package className="w-3.5 h-3.5" />
               <span>Mis Compras</span>
@@ -79,8 +79,8 @@ export function Navigation() {
           )}
           {isAuthenticated && (
             <Link href="/style-passport" data-testid="link-nav-style-passport" className={cn(
-              "text-sm font-medium transition-colors hover:text-white flex items-center gap-1.5 relative",
-              location === "/style-passport" ? "text-white" : "text-neutral-400"
+              "text-sm font-medium transition-colors hover:text-foreground flex items-center gap-1.5 relative",
+              location === "/style-passport" ? "text-foreground" : "text-muted-foreground"
             )}>
               <Fingerprint className="w-3.5 h-3.5" />
               <span>Style Passport</span>
@@ -91,14 +91,14 @@ export function Navigation() {
           )}
           <button
             onClick={toggleTheme}
-            className="text-neutral-400 hover:text-white transition-colors p-1"
+            className="text-muted-foreground hover:text-foreground transition-colors p-1"
             aria-label={theme === "dark" ? "Modo claro" : "Modo oscuro"}
           >
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
           <Link href="/cart" data-testid="link-nav-cart" className={cn(
-            "text-sm font-medium transition-colors hover:text-white flex items-center gap-2 relative",
-            location === "/cart" ? "text-white" : "text-neutral-400"
+            "text-sm font-medium transition-colors hover:text-foreground flex items-center gap-2 relative",
+            location === "/cart" ? "text-foreground" : "text-muted-foreground"
           )}>
             <span>Carrito</span>
             <div className="relative">
@@ -114,8 +114,8 @@ export function Navigation() {
             href={isAuthenticated ? "/profile" : "/auth"}
             data-testid="link-nav-auth"
             className={cn(
-              "text-sm font-medium transition-colors hover:text-white flex items-center gap-1.5",
-              (location === "/auth" || location === "/profile") ? "text-white" : "text-neutral-400"
+              "text-sm font-medium transition-colors hover:text-foreground flex items-center gap-1.5",
+              (location === "/auth" || location === "/profile") ? "text-foreground" : "text-muted-foreground"
             )}
           >
             {isAuthenticated && user?.profileImageUrl ? (
@@ -129,7 +129,7 @@ export function Navigation() {
 
         <div className="md:hidden flex items-center gap-4 z-50 relative">
           <Link href="/cart" className="relative" aria-label="Carrito">
-            <ShoppingBag className="w-5 h-5 text-white" />
+            <ShoppingBag className="w-5 h-5 text-foreground" />
             {totalItems > 0 && (
               <span className="absolute -top-2 -right-2 bg-[#C8FF00] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                 {totalItems > 9 ? "9+" : totalItems}
@@ -137,7 +137,7 @@ export function Navigation() {
             )}
           </Link>
           <button
-            className="text-white"
+            className="text-foreground"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
             aria-expanded={mobileMenuOpen}
@@ -148,7 +148,7 @@ export function Navigation() {
         </div>
 
         <div className={cn(
-          "fixed inset-0 bg-black/95 backdrop-blur-xl z-40 flex flex-col justify-center items-center gap-6 transition-all duration-300 md:hidden",
+          "fixed inset-0 bg-background/95 backdrop-blur-xl z-40 flex flex-col justify-center items-center gap-6 transition-all duration-300 md:hidden",
           mobileMenuOpen ? "opacity-100 translate-x-0" : "opacity-0 translate-x-full pointer-events-none"
         )}>
           {links.map((link) => (
@@ -157,7 +157,7 @@ export function Navigation() {
               href={link.href}
               className={cn(
                 "text-2xl font-display font-medium transition-colors",
-                location === link.href ? "text-[#C8FF00]" : "text-white"
+                location === link.href ? "text-[#C8FF00]" : "text-foreground"
               )}
               onClick={() => setMobileMenuOpen(false)}
             >

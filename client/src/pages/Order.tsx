@@ -104,7 +104,7 @@ export default function Order() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-background text-foreground">
         <Navigation />
         <div className="pt-32 flex items-center justify-center">
           <Loader2 className="w-8 h-8 text-[#C8FF00] animate-spin" />
@@ -115,7 +115,7 @@ export default function Order() {
 
   if (error || !order) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-background text-foreground">
         <Navigation />
         <div className="pt-32 px-4 text-center space-y-4">
           <XCircle className="w-12 h-12 text-red-400 mx-auto" />
@@ -132,7 +132,7 @@ export default function Order() {
   const StatusIcon = status.icon;
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navigation />
 
       <div className="pt-24 pb-20 px-4 md:px-8 max-w-4xl mx-auto">
@@ -148,7 +148,7 @@ export default function Order() {
                 <CheckCircle className="w-8 h-8 text-[#C8FF00]" />
               </div>
               <h1 className="text-3xl font-display font-bold">Pedido confirmado</h1>
-              <p className="text-neutral-400 mt-2">Gracias por tu compra en DREVO</p>
+              <p className="text-muted-foreground mt-2">Gracias por tu compra en DREVO</p>
             </>
           ) : paymentStatus === "failure" ? (
             <>
@@ -156,11 +156,11 @@ export default function Order() {
                 <XCircle className="w-8 h-8 text-red-400" />
               </div>
               <h1 className="text-3xl font-display font-bold">Pago rechazado</h1>
-              <p className="text-neutral-400 mt-2">Hubo un problema con tu pago. Podés intentar de nuevo.</p>
+              <p className="text-muted-foreground mt-2">Hubo un problema con tu pago. Podés intentar de nuevo.</p>
             </>
           ) : (
             <>
-              <div className={`w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4`}>
+              <div className={`w-16 h-16 bg-card rounded-full flex items-center justify-center mx-auto mb-4`}>
                 <StatusIcon className={`w-8 h-8 ${status.color}`} />
               </div>
               <h1 className="text-3xl font-display font-bold">Pedido #{order.orderNumber}</h1>
@@ -171,18 +171,18 @@ export default function Order() {
 
         {/* Order Info */}
         <div className="space-y-6">
-          <div className="bg-white/[0.02] border border-white/10 rounded-lg p-5">
+          <div className="bg-card border border-border rounded-lg p-5">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <p className="text-xs text-neutral-500">Número de orden</p>
+                <p className="text-xs text-muted-foreground">Número de orden</p>
                 <p className="font-mono text-lg font-bold">{order.orderNumber}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-neutral-500">Total</p>
+                <p className="text-xs text-muted-foreground">Total</p>
                 <p className="text-2xl font-bold">{formatPrice(order.total)}</p>
               </div>
             </div>
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-muted-foreground">
               {new Date(order.createdAt).toLocaleDateString("es-AR", {
                 weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
               })}
@@ -193,16 +193,16 @@ export default function Order() {
           {order.brandOrders.map(bo => {
             const boStatus = BRAND_STATUS_MAP[bo.status] || BRAND_STATUS_MAP.pending;
             return (
-              <div key={bo.id} className="border border-white/10 rounded-lg overflow-hidden">
-                <div className="bg-white/[0.03] px-4 py-3 border-b border-white/5 flex items-center justify-between">
+              <div key={bo.id} className="border border-border rounded-lg overflow-hidden">
+                <div className="bg-card px-4 py-3 border-b border-border flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-neutral-400" />
+                    <Package className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm font-medium">{bo.brandName}</span>
                   </div>
                   <span className={`text-xs font-medium ${boStatus.color}`}>{boStatus.label}</span>
                 </div>
                 <div className="p-4">
-                  <p className="text-sm text-neutral-400">Subtotal: {formatPrice(bo.subtotal)}</p>
+                  <p className="text-sm text-muted-foreground">Subtotal: {formatPrice(bo.subtotal)}</p>
                   {bo.trackingNumber && (
                     <div className="mt-2 flex items-center gap-2">
                       <Truck className="w-4 h-4 text-[#C8FF00]" />
@@ -211,13 +211,13 @@ export default function Order() {
                           Seguir envío: {bo.trackingNumber}
                         </a>
                       ) : (
-                        <span className="text-sm text-neutral-300">Tracking: {bo.trackingNumber}</span>
+                        <span className="text-sm text-muted-foreground">Tracking: {bo.trackingNumber}</span>
                       )}
                     </div>
                   )}
                 </div>
                 {/* Items for this brand */}
-                <div className="border-t border-white/5 divide-y divide-white/5">
+                <div className="border-t border-border divide-y divide-border">
                   {order.items
                     .filter(item => {
                       // Match items to brand orders (simplified — show all if single brand)
@@ -225,12 +225,12 @@ export default function Order() {
                     })
                     .map(item => (
                       <div key={item.id} className="flex gap-3 p-3">
-                        <div className="w-12 h-16 bg-neutral-900 rounded overflow-hidden flex-shrink-0">
+                        <div className="w-12 h-16 bg-card rounded overflow-hidden flex-shrink-0">
                           {item.imageUrl && <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm truncate">{item.title}</p>
-                          <p className="text-xs text-neutral-500">Talle: {item.sizeLabel} — x{item.quantity}</p>
+                          <p className="text-xs text-muted-foreground">Talle: {item.sizeLabel} — x{item.quantity}</p>
                         </div>
                         <p className="text-sm font-medium">{formatPrice(item.totalPrice)}</p>
                       </div>
@@ -242,11 +242,11 @@ export default function Order() {
 
           {/* Shipping Address */}
           {order.shippingAddress && (
-            <div className="p-4 border border-white/10 rounded-lg">
-              <p className="text-sm font-medium text-neutral-300 flex items-center gap-2 mb-2">
+            <div className="p-4 border border-border rounded-lg">
+              <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-2">
                 <MapPin className="w-4 h-4" /> Dirección de envío
               </p>
-              <div className="text-sm text-neutral-400">
+              <div className="text-sm text-muted-foreground">
                 <p>{order.shippingAddress.fullName}</p>
                 <p>{order.shippingAddress.street} {order.shippingAddress.streetNumber}{order.shippingAddress.floor ? `, ${order.shippingAddress.floor}` : ""}</p>
                 <p>{order.shippingAddress.city}, {order.shippingAddress.province} — CP {order.shippingAddress.postalCode}</p>
@@ -262,7 +262,7 @@ export default function Order() {
               </span>
             </Link>
             <Link href="/profile" className="flex-1">
-              <span className="w-full py-3 border border-white/10 rounded-xl text-neutral-300 hover:text-white transition-colors flex items-center justify-center gap-2 cursor-pointer">
+              <span className="w-full py-3 border border-border rounded-xl text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-2 cursor-pointer">
                 <ShoppingBag className="w-4 h-4" /> Mis pedidos
               </span>
             </Link>

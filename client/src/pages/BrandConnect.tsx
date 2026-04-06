@@ -45,7 +45,7 @@ export default function BrandConnect() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navigation />
 
       <div className="pt-28 pb-20 px-4 md:px-8 max-w-2xl mx-auto">
@@ -62,7 +62,7 @@ export default function BrandConnect() {
             <h1 className="text-4xl font-display font-bold tracking-tight">
               Conectá tu tienda
             </h1>
-            <p className="text-neutral-400 text-base leading-relaxed">
+            <p className="text-muted-foreground text-base leading-relaxed">
               Conectá tu catálogo de Tiendanube para que tus productos aparezcan en DREVO con búsqueda semántica AI.
             </p>
           </div>
@@ -104,15 +104,15 @@ export default function BrandConnect() {
           )}
 
           {tiendanubeIntegrations.length > 0 && tiendanubeIntegrations.map((integration) => (
-            <div key={integration.id} className="border border-white/10 rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/[0.02]">
+            <div key={integration.id} className="border border-border rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-border bg-card">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-[#00aeef]/10 flex items-center justify-center">
                     <Store className="w-5 h-5 text-[#00aeef]" />
                   </div>
                   <div>
                     <p className="font-semibold text-sm">Tiendanube</p>
-                    <p className="text-xs text-neutral-500">Store ID: <span className="text-neutral-300 font-mono">{integration.storeId}</span></p>
+                    <p className="text-xs text-muted-foreground">Store ID: <span className="text-foreground font-mono">{integration.storeId}</span></p>
                   </div>
                 </div>
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#C8FF00] bg-[#C8FF00]/10 px-3 py-1 rounded-full border border-[#C8FF00]/20">
@@ -142,10 +142,10 @@ export default function BrandConnect() {
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-2 rounded-xl bg-white/5 border border-white/10 px-4 py-3 space-y-1"
+                    className="mt-2 rounded-xl bg-card border border-border px-4 py-3 space-y-1"
                   >
-                    <p className="text-sm font-medium text-white">Sincronización completada</p>
-                    <p className="text-xs text-neutral-400">
+                    <p className="text-sm font-medium text-foreground">Sincronización completada</p>
+                    <p className="text-xs text-muted-foreground">
                       {syncResults[integration.id].synced} producto{syncResults[integration.id].synced !== 1 ? "s" : ""} importado{syncResults[integration.id].synced !== 1 ? "s" : ""}
                       {syncResults[integration.id].errors.length > 0 && ` · ${syncResults[integration.id].errors.length} errores`}
                     </p>
@@ -156,19 +156,19 @@ export default function BrandConnect() {
           ))}
 
           {tiendanubeIntegrations.length === 0 && !isLoading && (
-            <div className="border border-white/10 rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/[0.02]">
+            <div className="border border-border rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-border bg-card">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-[#00aeef]/10 flex items-center justify-center">
                     <Store className="w-5 h-5 text-[#00aeef]" />
                   </div>
                   <div>
                     <p className="font-semibold text-sm">Tiendanube</p>
-                    <p className="text-xs text-neutral-500">Nuvemshop · Argentina</p>
+                    <p className="text-xs text-muted-foreground">Nuvemshop · Argentina</p>
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-                  <span className="w-1.5 h-1.5 rounded-full bg-neutral-500 inline-block" />
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-card px-3 py-1 rounded-full border border-border">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground inline-block" />
                   No conectado
                 </span>
               </div>
@@ -188,13 +188,13 @@ export default function BrandConnect() {
           <button
             onClick={handleConnect}
             data-testid="button-add-store"
-            className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-dashed border-white/20 text-neutral-400 text-sm font-medium hover:border-white/40 hover:text-white transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-dashed border-border text-muted-foreground text-sm font-medium hover:border-border hover:text-foreground transition-colors"
           >
             <Plus className="w-4 h-4" />
             Conectar otra tienda de Tiendanube
           </button>
 
-          <div className="text-xs text-neutral-600 space-y-1 leading-relaxed">
+          <div className="text-xs text-muted-foreground space-y-1 leading-relaxed">
             <p>Al conectar tu tienda, DREVO importa tu catálogo y genera embeddings semánticos para cada producto.</p>
             <p>La sincronización es idempotente: podés ejecutarla varias veces sin duplicar productos.</p>
             <p>Para conectar otra tienda, asegurate de cerrar sesión en Tiendanube primero, o usá una ventana de incógnito.</p>

@@ -44,7 +44,7 @@ export default function Landing() {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-white selection:text-black">
+    <div className="min-h-screen bg-background text-foreground selection:bg-foreground selection:text-background">
       <Navigation />
       <main className="relative pt-32 pb-20 px-4 md:px-8 max-w-7xl mx-auto min-h-screen flex flex-col justify-center">
         
@@ -67,7 +67,7 @@ export default function Landing() {
               <span className="text-[#C8FF00]">con intención.</span>
             </h1>
             
-            <p className="text-lg md:text-xl text-neutral-400 max-w-2xl mx-auto font-light leading-relaxed">
+            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto font-light leading-relaxed">
               Olvidate de los filtros. Describí lo que buscás, cómo te querés sentir o para qué ocasión, y dejá que nuestra IA cure tu estilo.
             </p>
           </motion.div>
@@ -81,17 +81,17 @@ export default function Landing() {
           >
             <form onSubmit={handleSearch} className="relative group">
               <div className="absolute inset-0 bg-gradient-to-r from-neutral-800 to-neutral-600 rounded-lg blur opacity-25 group-hover:opacity-40 transition-opacity duration-500"></div>
-              <div className="relative flex items-center bg-[#0A0A0A] border border-white/10 rounded-lg p-2 shadow-2xl">
-                <Search className="w-5 h-5 text-neutral-500 ml-3" />
+              <div className="relative flex items-center bg-card border border-border rounded-lg p-2 shadow-2xl">
+                <Search className="w-5 h-5 text-muted-foreground ml-3" />
                 <input
                   type="text"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="Describí tu look ideal..."
-                  className="flex-1 bg-transparent border-none text-white placeholder:text-neutral-600 focus:ring-0 px-4 py-3 text-lg"
+                  className="flex-1 bg-transparent border-none text-foreground placeholder:text-muted-foreground focus:ring-0 px-4 py-3 text-lg"
                   autoFocus
                 />
-                <VisualSearchButton className="!rounded-md !p-3 !border-0 !bg-white/5" />
+                <VisualSearchButton className="!rounded-md !p-3 !border-0 !bg-card" />
                 <button
                   type="submit"
                   className="bg-[#C8FF00] text-black p-3 rounded-md hover:bg-[#A3D600] transition-colors font-medium flex items-center gap-2"
@@ -104,12 +104,12 @@ export default function Landing() {
 
             {searchHistory.length > 0 && !prompt && (
               <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <span className="text-xs text-neutral-600 flex items-center gap-1 mr-1"><Clock className="w-3 h-3" /> Recientes:</span>
+                <span className="text-xs text-muted-foreground flex items-center gap-1 mr-1"><Clock className="w-3 h-3" /> Recientes:</span>
                 {searchHistory.map((h, i) => (
                   <button
                     key={i}
                     onClick={() => setLocation(`/search?q=${encodeURIComponent(h)}`)}
-                    className="px-3 py-1.5 text-xs bg-white/5 border border-white/10 rounded-full text-neutral-300 hover:text-white hover:border-white/30 transition-all"
+                    className="px-3 py-1.5 text-xs bg-card border border-border rounded-full text-neutral-300 hover:text-foreground hover:border-white/30 transition-all"
                     data-testid={`button-history-${i}`}
                   >
                     {h}
@@ -126,7 +126,7 @@ export default function Landing() {
                     addToSearchHistory(ex);
                     setLocation(`/search?q=${encodeURIComponent(ex)}`);
                   }}
-                  className="px-4 py-2 text-sm bg-white/5 border border-white/5 rounded-full text-neutral-400 hover:text-[#C8FF00] hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/5 transition-all duration-300"
+                  className="px-4 py-2 text-sm bg-card border border-border rounded-full text-muted-foreground hover:text-[#C8FF00] hover:border-[#C8FF00]/30 hover:bg-[#C8FF00]/5 transition-all duration-300"
                   data-testid={`button-example-${i}`}
                 >
                   {ex}

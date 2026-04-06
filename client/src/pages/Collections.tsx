@@ -57,14 +57,14 @@ export default function Collections() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-background text-foreground">
         <Navigation />
         <div className="pt-32 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6">
-          <Bookmark className="w-16 h-16 text-neutral-600" />
+          <Bookmark className="w-16 h-16 text-muted-foreground" />
           <h1 className="text-3xl font-display font-bold">Guardá tus productos favoritos</h1>
-          <p className="text-neutral-400 max-w-md">Iniciá sesión para crear colecciones y guardar los productos que te gustan.</p>
+          <p className="text-muted-foreground max-w-md">Iniciá sesión para crear colecciones y guardar los productos que te gustan.</p>
           <Link href="/auth">
-            <span className="px-8 py-3 bg-white text-black font-semibold rounded hover:bg-neutral-200 transition-colors cursor-pointer" data-testid="link-auth-collections">
+            <span className="px-8 py-3 bg-foreground text-background font-semibold rounded hover:bg-foreground/80 transition-colors cursor-pointer" data-testid="link-auth-collections">
               Iniciar sesión
             </span>
           </Link>
@@ -76,12 +76,12 @@ export default function Collections() {
   if (selectedCollectionId) {
     const collection = collections.find((c: any) => c.id === selectedCollectionId);
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-background text-foreground">
         <Navigation />
         <div className="pt-24 pb-20 px-4 md:px-8 max-w-[1600px] mx-auto">
           <button
             onClick={() => setSelectedCollectionId(null)}
-            className="inline-flex items-center gap-2 text-neutral-500 hover:text-white mb-8 transition-colors"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors"
             data-testid="button-back-collections"
           >
             <ArrowLeft className="w-4 h-4" /> Mis colecciones
@@ -93,11 +93,11 @@ export default function Collections() {
 
           {itemsLoading ? (
             <div className="flex justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-neutral-500" />
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
             </div>
           ) : collectionItems.length === 0 ? (
             <div className="text-center py-20">
-              <p className="text-neutral-500 text-lg mb-4">Esta colección está vacía.</p>
+              <p className="text-muted-foreground text-lg mb-4">Esta colección está vacía.</p>
               <Link href="/search">
                 <span className="text-[#C8FF00] hover:underline cursor-pointer">Explorá productos para agregar</span>
               </Link>
@@ -113,7 +113,7 @@ export default function Collections() {
                       e.stopPropagation();
                       removeItem.mutate({ collectionId: selectedCollectionId, productId: product.id });
                     }}
-                    className="absolute top-2 right-2 w-8 h-8 bg-black/70 rounded-full flex items-center justify-center text-neutral-400 hover:text-red-400 opacity-0 group-hover/item:opacity-100 transition-all z-10"
+                    className="absolute top-2 right-2 w-8 h-8 bg-background/70 rounded-full flex items-center justify-center text-muted-foreground hover:text-red-400 opacity-0 group-hover/item:opacity-100 transition-all z-10"
                     data-testid={`button-remove-from-collection-${product.id}`}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -128,14 +128,14 @@ export default function Collections() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navigation />
       <div className="pt-24 pb-20 px-4 md:px-8 max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-10">
           <h1 className="text-3xl font-display font-bold" data-testid="text-collections-title">Mis Colecciones</h1>
           <button
             onClick={() => setShowNewForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm hover:border-white/30 transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg text-sm hover:border-border transition-all"
             data-testid="button-new-collection"
           >
             <Plus className="w-4 h-4" /> Nueva colección
@@ -146,13 +146,13 @@ export default function Collections() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-4 bg-white/5 border border-white/10 rounded-lg flex gap-3"
+            className="mb-8 p-4 bg-card border border-border rounded-lg flex gap-3"
           >
             <input
               value={newCollectionName}
               onChange={(e) => setNewCollectionName(e.target.value)}
               placeholder="Nombre de la colección..."
-              className="flex-1 bg-transparent border border-white/10 rounded px-4 py-2 text-white placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/50"
+              className="flex-1 bg-transparent border border-border rounded px-4 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/50"
               data-testid="input-new-collection-name"
               autoFocus
             />
@@ -169,13 +169,13 @@ export default function Collections() {
 
         {isLoading ? (
           <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-neutral-500" />
+            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
         ) : collections.length === 0 ? (
           <div className="text-center py-20">
-            <Bookmark className="w-12 h-12 text-neutral-600 mx-auto mb-4" />
-            <p className="text-neutral-500 text-lg mb-2">Todavía no tenés colecciones.</p>
-            <p className="text-neutral-600 text-sm">Guardá productos desde la búsqueda y se crearán automáticamente.</p>
+            <Bookmark className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <p className="text-muted-foreground text-lg mb-2">Todavía no tenés colecciones.</p>
+            <p className="text-muted-foreground text-sm">Guardá productos desde la búsqueda y se crearán automáticamente.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -183,14 +183,14 @@ export default function Collections() {
               <button
                 key={c.id}
                 onClick={() => setSelectedCollectionId(c.id)}
-                className="p-6 bg-white/5 border border-white/10 rounded-xl text-left hover:border-white/30 transition-all group"
+                className="p-6 bg-card border border-border rounded-xl text-left hover:border-border transition-all group"
                 data-testid={`button-collection-${c.id}`}
               >
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-2xl">{c.emoji || "📌"}</span>
                   <h3 className="text-lg font-semibold group-hover:text-[#C8FF00] transition-colors">{c.name}</h3>
                 </div>
-                {c.isDefault && <span className="text-xs text-neutral-500">Colección principal</span>}
+                {c.isDefault && <span className="text-xs text-muted-foreground">Colección principal</span>}
               </button>
             ))}
           </div>

@@ -98,7 +98,7 @@ export default function ProductDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
@@ -106,19 +106,19 @@ export default function ProductDetail() {
 
   if (error || !product) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-background text-foreground">
         <Navigation />
         <div className="pt-32 flex flex-col items-center justify-center text-center gap-4 px-4">
-          <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-2">
-            <SearchIcon className="w-8 h-8 text-neutral-500" />
+          <div className="w-16 h-16 bg-card rounded-full flex items-center justify-center mb-2">
+            <SearchIcon className="w-8 h-8 text-muted-foreground" />
           </div>
           <h2 className="text-xl font-display font-bold">Producto no encontrado</h2>
-          <p className="text-neutral-500 max-w-md">Es posible que el producto haya sido eliminado o que el enlace sea incorrecto.</p>
+          <p className="text-muted-foreground max-w-md">Es posible que el producto haya sido eliminado o que el enlace sea incorrecto.</p>
           <div className="flex gap-3 mt-4">
-            <Link href="/search" className="px-6 py-2.5 bg-white text-black rounded font-semibold hover:bg-neutral-200 transition-colors">
+            <Link href="/search" className="px-6 py-2.5 bg-foreground text-background rounded font-semibold hover:bg-neutral-200 transition-colors">
               Buscar productos
             </Link>
-            <Link href="/" className="px-6 py-2.5 border border-white/20 rounded font-medium text-neutral-300 hover:text-white transition-colors">
+            <Link href="/" className="px-6 py-2.5 border border-border rounded font-medium text-neutral-300 hover:text-foreground transition-colors">
               Ir al inicio
             </Link>
           </div>
@@ -171,11 +171,11 @@ export default function ProductDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navigation />
 
       <div className="pt-24 pb-20 px-4 md:px-8 max-w-7xl mx-auto">
-        <Link href="/search" className="inline-flex items-center gap-2 text-neutral-500 hover:text-white mb-8 transition-colors" data-testid="link-back-search">
+        <Link href="/search" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-8 transition-colors" data-testid="link-back-search">
           <ArrowLeft className="w-4 h-4" />
           <span>Volver a la búsqueda</span>
         </Link>
@@ -187,7 +187,7 @@ export default function ProductDetail() {
               key={selectedImageIdx}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="aspect-[3/4] w-full bg-neutral-900 overflow-hidden rounded-lg"
+              className="aspect-[3/4] w-full bg-card overflow-hidden rounded-lg"
             >
               <img
                 src={currentImage}
@@ -204,7 +204,7 @@ export default function ProductDetail() {
                     key={idx}
                     onClick={() => setSelectedImageIdx(idx)}
                     className={cn(
-                      "aspect-[3/4] bg-neutral-900 rounded-md overflow-hidden cursor-pointer transition-opacity",
+                      "aspect-[3/4] bg-card rounded-md overflow-hidden cursor-pointer transition-opacity",
                       selectedImageIdx === idx ? "opacity-100 ring-2 ring-white" : "opacity-60 hover:opacity-100"
                     )}
                     data-testid={`button-thumbnail-${idx}`}
@@ -219,9 +219,9 @@ export default function ProductDetail() {
           <div className="lg:col-span-5 relative">
             <div className="sticky top-32 space-y-8">
 
-              <div className="space-y-2 border-b border-white/10 pb-8">
+              <div className="space-y-2 border-b border-border pb-8">
                 <div className="flex justify-between items-start">
-                  <h2 className="text-sm font-medium tracking-wide text-neutral-400 uppercase" data-testid="text-brand-name">
+                  <h2 className="text-sm font-medium tracking-wide text-muted-foreground uppercase" data-testid="text-brand-name">
                     {product.brand?.name || "DREVO Selection"}
                   </h2>
                   <div className="flex gap-4">
@@ -236,7 +236,7 @@ export default function ProductDetail() {
                           toast({ title: "Link copiado", description: "El enlace fue copiado al portapapeles." });
                         }
                       }}
-                      className="text-neutral-400 hover:text-white transition-colors"
+                      className="text-muted-foreground hover:text-foreground transition-colors"
                       aria-label="Compartir producto"
                       data-testid="button-share"
                     >
@@ -246,7 +246,7 @@ export default function ProductDetail() {
                       onClick={handleBookmark}
                       className={cn(
                         "transition-colors",
-                        isSaved ? "text-[#C8FF00]" : "text-neutral-400 hover:text-[#C8FF00]"
+                        isSaved ? "text-[#C8FF00]" : "text-muted-foreground hover:text-[#C8FF00]"
                       )}
                       data-testid="button-favorite"
                     >
@@ -262,7 +262,7 @@ export default function ProductDetail() {
                     {formatPrice(price)}
                   </p>
                   {originalPrice && (
-                    <p className="text-lg text-neutral-500 line-through" data-testid="text-original-price">
+                    <p className="text-lg text-muted-foreground line-through" data-testid="text-original-price">
                       {formatPrice(originalPrice)}
                     </p>
                   )}
@@ -273,7 +273,7 @@ export default function ProductDetail() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-neutral-300">Seleccionar Talle</span>
-                    <button className="text-neutral-500 underline">Guía de talles</button>
+                    <button className="text-muted-foreground underline">Guía de talles</button>
                   </div>
                   <div className="grid grid-cols-4 gap-3">
                     {variants.map((v: any) => {
@@ -288,8 +288,8 @@ export default function ProductDetail() {
                           className={cn(
                             "h-12 border rounded flex items-center justify-center text-sm font-medium transition-all",
                             selectedSize === label
-                              ? "bg-white text-black border-white"
-                              : "bg-transparent text-white border-white/20 hover:border-white",
+                              ? "bg-foreground text-background border-foreground"
+                              : "bg-transparent text-foreground border-border hover:border-foreground",
                             isOutOfStock && "opacity-30 cursor-not-allowed decoration-slice line-through"
                           )}
                         >
@@ -310,7 +310,7 @@ export default function ProductDetail() {
                     "w-full h-14 rounded font-semibold text-lg transition-all flex items-center justify-center gap-2",
                     justAdded
                       ? "bg-green-600 text-white"
-                      : "bg-white text-black hover:bg-neutral-200"
+                      : "bg-foreground text-background hover:bg-neutral-200"
                   )}
                 >
                   <AnimatePresence mode="wait">
@@ -346,7 +346,7 @@ export default function ProductDetail() {
                     href={product.externalUrl}
                     onClick={handleExternalClick}
                     data-testid="link-buy-external"
-                    className="w-full h-12 border border-white/20 rounded font-medium text-sm text-neutral-300 hover:text-white hover:border-white transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full h-12 border border-border rounded font-medium text-sm text-neutral-300 hover:text-foreground hover:border-foreground transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     Ver en tienda oficial <ExternalLink className="w-4 h-4" />
                   </a>
@@ -355,28 +355,28 @@ export default function ProductDetail() {
                 <button
                   onClick={handleSearchSimilar}
                   data-testid="button-search-similar"
-                  className="w-full h-12 border border-white/10 rounded font-medium text-sm text-neutral-500 hover:text-white hover:border-white/30 transition-all flex items-center justify-center gap-2"
+                  className="w-full h-12 border border-border rounded font-medium text-sm text-muted-foreground hover:text-foreground hover:border-white/30 transition-all flex items-center justify-center gap-2"
                 >
                   <SearchIcon className="w-4 h-4" /> Buscar algo similar
                 </button>
 
-                <p className="text-center text-xs text-neutral-500">
+                <p className="text-center text-xs text-muted-foreground">
                   Envío gratis en compras superiores a $100.000
                 </p>
               </div>
 
-              <div className="border-t border-white/10 pt-6 space-y-4">
+              <div className="border-t border-border pt-6 space-y-4">
                 <h3 className="font-medium flex items-center gap-2">
                   <Info className="w-4 h-4" /> Descripción
                 </h3>
-                <p className="text-neutral-400 text-sm leading-relaxed" data-testid="text-product-description">
+                <p className="text-muted-foreground text-sm leading-relaxed" data-testid="text-product-description">
                   {product.description || "Una prenda esencial diseñada para elevar tu guardarropa diario. Confeccionada con materiales de primera calidad para asegurar durabilidad y confort."}
                 </p>
 
                 {product.tags && product.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-2">
                     {product.tags.map((t: any) => (
-                      <span key={t.tag} className="text-xs px-2 py-1 bg-white/5 rounded text-neutral-400">
+                      <span key={t.tag} className="text-xs px-2 py-1 bg-card rounded text-muted-foreground">
                         #{t.tag}
                       </span>
                     ))}

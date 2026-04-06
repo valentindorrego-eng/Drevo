@@ -13,14 +13,14 @@ export default function Cart() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-background text-foreground">
         <Navigation />
         <div className="pt-32 px-4 flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6">
-          <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-4">
-            <ShoppingBag className="w-10 h-10 text-neutral-400" />
+          <div className="w-20 h-20 bg-card rounded-full flex items-center justify-center mb-4">
+            <ShoppingBag className="w-10 h-10 text-muted-foreground" />
           </div>
           <h1 className="text-3xl font-display font-bold" data-testid="text-cart-empty">Tu carrito está vacío</h1>
-          <p className="text-neutral-400 max-w-md">
+          <p className="text-muted-foreground max-w-md">
             Parece que todavía no agregaste nada. Explorá nuestra colección curada por IA para encontrar tu próximo look.
           </p>
           <Link href="/search">
@@ -34,17 +34,17 @@ export default function Cart() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navigation />
 
       <div className="pt-24 pb-20 px-4 md:px-8 max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-10">
           <h1 className="text-3xl font-display font-bold" data-testid="text-cart-title">
-            Tu Carrito <span className="text-neutral-500 text-xl font-normal">({totalItems} {totalItems === 1 ? "item" : "items"})</span>
+            Tu Carrito <span className="text-muted-foreground text-xl font-normal">({totalItems} {totalItems === 1 ? "item" : "items"})</span>
           </h1>
           <button
             onClick={clearCart}
-            className="text-sm text-neutral-500 hover:text-red-400 transition-colors"
+            className="text-sm text-muted-foreground hover:text-red-400 transition-colors"
             data-testid="button-clear-cart"
           >
             Vaciar carrito
@@ -63,15 +63,15 @@ export default function Cart() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -100 }}
-                  className="flex gap-5 border border-white/10 rounded-lg p-4 bg-white/[0.02]"
+                  className="flex gap-5 border border-border rounded-lg p-4 bg-card"
                   data-testid={`cart-item-${item.id}`}
                 >
                   <Link href={`/product/${item.id}`}>
-                    <div className="w-24 h-32 bg-neutral-900 rounded overflow-hidden flex-shrink-0 cursor-pointer">
+                    <div className="w-24 h-32 bg-card rounded overflow-hidden flex-shrink-0 cursor-pointer">
                       {item.imageUrl ? (
                         <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-neutral-600">
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                           <ShoppingBag className="w-8 h-8" />
                         </div>
                       )}
@@ -80,20 +80,20 @@ export default function Cart() {
 
                   <div className="flex-1 flex flex-col justify-between min-w-0">
                     <div>
-                      <p className="text-xs text-neutral-500 uppercase tracking-wide">{item.brand}</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">{item.brand}</p>
                       <Link href={`/product/${item.id}`}>
                         <h3 className="font-semibold text-lg truncate hover:underline cursor-pointer" data-testid={`text-cart-item-title-${item.id}`}>
                           {item.title}
                         </h3>
                       </Link>
-                      <p className="text-sm text-neutral-400 mt-1">Talle: {item.sizeLabel}</p>
+                      <p className="text-sm text-muted-foreground mt-1">Talle: {item.sizeLabel}</p>
                     </div>
 
                     <div className="flex items-center justify-between mt-4">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => updateQuantity(item.id, item.sizeLabel, item.quantity - 1)}
-                          className="w-10 h-10 border border-white/20 rounded-lg flex items-center justify-center hover:border-white active:bg-white/10 transition-colors"
+                          className="w-10 h-10 border border-border rounded-lg flex items-center justify-center hover:border-foreground active:bg-card transition-colors"
                           aria-label="Reducir cantidad"
                           data-testid={`button-decrease-${item.id}`}
                         >
@@ -102,7 +102,7 @@ export default function Cart() {
                         <span className="text-sm font-semibold w-8 text-center tabular-nums" data-testid={`text-quantity-${item.id}`}>{item.quantity}</span>
                         <button
                           onClick={() => updateQuantity(item.id, item.sizeLabel, item.quantity + 1)}
-                          className="w-10 h-10 border border-white/20 rounded-lg flex items-center justify-center hover:border-white active:bg-white/10 transition-colors"
+                          className="w-10 h-10 border border-border rounded-lg flex items-center justify-center hover:border-foreground active:bg-card transition-colors"
                           aria-label="Aumentar cantidad"
                           data-testid={`button-increase-${item.id}`}
                         >
@@ -116,7 +116,7 @@ export default function Cart() {
                         </p>
                         <button
                           onClick={() => removeItem(item.id, item.sizeLabel)}
-                          className="text-neutral-500 hover:text-red-400 transition-colors"
+                          className="text-muted-foreground hover:text-red-400 transition-colors"
                           data-testid={`button-remove-${item.id}`}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -132,7 +132,7 @@ export default function Cart() {
                           const referralUrl = await trackClick(item.id);
                           window.open(referralUrl || item.externalUrl!, "_blank", "noopener,noreferrer");
                         }}
-                        className="text-xs text-neutral-500 hover:text-white transition-colors mt-2 inline-flex items-center gap-1 self-start cursor-pointer"
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-2 inline-flex items-center gap-1 self-start cursor-pointer"
                         data-testid={`link-external-${item.id}`}
                       >
                         Comprar en tienda oficial <ExternalLink className="w-3 h-3" />
@@ -145,12 +145,12 @@ export default function Cart() {
           </AnimatePresence>
         </div>
 
-        <div className="mt-10 border-t border-white/10 pt-8 space-y-6">
+        <div className="mt-10 border-t border-border pt-8 space-y-6">
           <div className="flex justify-between items-center text-lg">
-            <span className="text-neutral-300">Subtotal</span>
+            <span className="text-muted-foreground">Subtotal</span>
             <span className="font-bold text-2xl" data-testid="text-cart-total">{formatPrice(totalPrice)}</span>
           </div>
-          <p className="text-xs text-neutral-500">Impuestos y costos de envío se calculan al finalizar la compra.</p>
+          <p className="text-xs text-muted-foreground">Impuestos y costos de envío se calculan al finalizar la compra.</p>
 
           <div className="space-y-3">
             <Link href="/checkout">
@@ -161,7 +161,7 @@ export default function Cart() {
             </Link>
 
             <Link href="/search">
-              <span className="w-full h-12 border border-white/20 rounded font-medium text-sm text-neutral-300 hover:text-white hover:border-white transition-all flex items-center justify-center gap-2 cursor-pointer" data-testid="link-continue-shopping">
+              <span className="w-full h-12 border border-border rounded font-medium text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-all flex items-center justify-center gap-2 cursor-pointer" data-testid="link-continue-shopping">
                 Seguir comprando <ArrowRight className="w-4 h-4" />
               </span>
             </Link>

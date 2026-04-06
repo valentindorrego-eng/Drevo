@@ -160,7 +160,7 @@ export default function Checkout() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-background text-foreground">
       <Navigation />
 
       <div className="pt-24 pb-20 px-4 md:px-8 max-w-5xl mx-auto">
@@ -175,11 +175,11 @@ export default function Checkout() {
             const isPast = (step === "review" && i === 0) || (step === "processing" && i < 2);
             return (
               <div key={s.key} className="flex items-center gap-2">
-                {i > 0 && <ChevronRight className="w-4 h-4 text-neutral-600" />}
+                {i > 0 && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all ${
                   isActive ? "bg-[#C8FF00]/10 text-[#C8FF00] border border-[#C8FF00]/30" :
-                  isPast ? "bg-white/5 text-white border border-white/10" :
-                  "text-neutral-600 border border-transparent"
+                  isPast ? "bg-card text-foreground border border-border" :
+                  "text-muted-foreground border border-transparent"
                 }`}>
                   {isPast ? <Check className="w-3.5 h-3.5" /> : <s.icon className="w-3.5 h-3.5" />}
                   <span className="hidden sm:inline">{s.label}</span>
@@ -210,22 +210,22 @@ export default function Checkout() {
                         className={`w-full text-left p-4 rounded-lg border transition-all ${
                           selectedAddressId === addr.id
                             ? "border-[#C8FF00]/30 bg-[#C8FF00]/5"
-                            : "border-white/10 bg-white/[0.02] hover:border-white/20"
+                            : "border-border bg-card hover:border-border"
                         }`}
                       >
                         <p className="font-medium">{addr.fullName}</p>
-                        <p className="text-sm text-neutral-400">
+                        <p className="text-sm text-muted-foreground">
                           {addr.street} {addr.streetNumber}{addr.floor ? `, ${addr.floor}` : ""}
                         </p>
-                        <p className="text-sm text-neutral-400">
+                        <p className="text-sm text-muted-foreground">
                           {addr.city}, {addr.province} — CP {addr.postalCode}
                         </p>
-                        {addr.phone && <p className="text-sm text-neutral-500 mt-1">{addr.phone}</p>}
+                        {addr.phone && <p className="text-sm text-muted-foreground mt-1">{addr.phone}</p>}
                       </button>
                     ))}
                     <button
                       onClick={() => setShowAddressForm(true)}
-                      className="w-full p-3 border border-dashed border-white/10 rounded-lg text-sm text-neutral-400 hover:text-white hover:border-white/20 flex items-center justify-center gap-2 transition-colors"
+                      className="w-full p-3 border border-dashed border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:border-border flex items-center justify-center gap-2 transition-colors"
                     >
                       <Plus className="w-4 h-4" /> Agregar otra dirección
                     </button>
@@ -233,76 +233,76 @@ export default function Checkout() {
                 )}
 
                 {showAddressForm && (
-                  <div className="space-y-4 p-5 bg-white/[0.02] border border-white/10 rounded-lg">
+                  <div className="space-y-4 p-5 bg-card border border-border rounded-lg">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="col-span-2">
-                        <label className="block text-xs text-neutral-500 mb-1">Nombre completo *</label>
+                        <label className="block text-xs text-muted-foreground mb-1">Nombre completo *</label>
                         <input
                           value={form.fullName}
                           onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
-                          className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Calle *</label>
+                        <label className="block text-xs text-muted-foreground mb-1">Calle *</label>
                         <input
                           value={form.street}
                           onChange={e => setForm(f => ({ ...f, street: e.target.value }))}
-                          className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
                         />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs text-neutral-500 mb-1">Número *</label>
+                          <label className="block text-xs text-muted-foreground mb-1">Número *</label>
                           <input
                             value={form.streetNumber}
                             onChange={e => setForm(f => ({ ...f, streetNumber: e.target.value }))}
-                            className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                            className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-neutral-500 mb-1">Piso/Dpto</label>
+                          <label className="block text-xs text-muted-foreground mb-1">Piso/Dpto</label>
                           <input
                             value={form.floor}
                             onChange={e => setForm(f => ({ ...f, floor: e.target.value }))}
-                            className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                            className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Ciudad *</label>
+                        <label className="block text-xs text-muted-foreground mb-1">Ciudad *</label>
                         <input
                           value={form.city}
                           onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
-                          className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Provincia *</label>
+                        <label className="block text-xs text-muted-foreground mb-1">Provincia *</label>
                         <select
                           value={form.province}
                           onChange={e => setForm(f => ({ ...f, province: e.target.value }))}
-                          className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
                         >
                           <option value="">Seleccionar...</option>
                           {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Código Postal *</label>
+                        <label className="block text-xs text-muted-foreground mb-1">Código Postal *</label>
                         <input
                           value={form.postalCode}
                           onChange={e => setForm(f => ({ ...f, postalCode: e.target.value }))}
-                          className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-neutral-500 mb-1">Teléfono</label>
+                        <label className="block text-xs text-muted-foreground mb-1">Teléfono</label>
                         <input
                           value={form.phone}
                           onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                           placeholder="+54 9 ..."
-                          className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
+                          className="w-full bg-background border border-border rounded-lg px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#C8FF00]/30"
                         />
                       </div>
                     </div>
@@ -321,7 +321,7 @@ export default function Checkout() {
                       {addresses.length > 0 && (
                         <button
                           onClick={() => setShowAddressForm(false)}
-                          className="px-4 py-3 border border-white/10 rounded-lg text-sm text-neutral-400 hover:text-white transition-colors"
+                          className="px-4 py-3 border border-border rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
                         >
                           Cancelar
                         </button>
@@ -351,22 +351,22 @@ export default function Checkout() {
 
                 {/* Items grouped by brand */}
                 {Object.entries(brandGroups).map(([brand, brandItems]) => (
-                  <div key={brand} className="mb-6 border border-white/10 rounded-lg overflow-hidden">
-                    <div className="bg-white/[0.03] px-4 py-3 border-b border-white/5 flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-neutral-400" />
-                      <span className="text-sm font-medium text-neutral-300">Envío de <span className="text-white">{brand}</span></span>
+                  <div key={brand} className="mb-6 border border-border rounded-lg overflow-hidden">
+                    <div className="bg-card px-4 py-3 border-b border-border flex items-center gap-2">
+                      <Truck className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground">Envío de <span className="text-foreground">{brand}</span></span>
                     </div>
-                    <div className="divide-y divide-white/5">
+                    <div className="divide-y divide-border">
                       {brandItems.map(item => {
                         const price = item.salePrice || item.basePrice;
                         return (
                           <div key={`${item.id}-${item.sizeLabel}`} className="flex gap-4 p-4">
-                            <div className="w-16 h-20 bg-neutral-900 rounded overflow-hidden flex-shrink-0">
+                            <div className="w-16 h-20 bg-card rounded overflow-hidden flex-shrink-0">
                               {item.imageUrl && <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{item.title}</p>
-                              <p className="text-xs text-neutral-500 mt-0.5">Talle: {item.sizeLabel} — Cant: {item.quantity}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">Talle: {item.sizeLabel} — Cant: {item.quantity}</p>
                             </div>
                             <p className="text-sm font-semibold whitespace-nowrap">{formatPrice(price * item.quantity)}</p>
                           </div>
@@ -378,9 +378,9 @@ export default function Checkout() {
 
                 {/* Selected address summary */}
                 {selectedAddressId && (
-                  <div className="p-4 border border-white/10 rounded-lg mb-6">
+                  <div className="p-4 border border-border rounded-lg mb-6">
                     <div className="flex items-center justify-between mb-2">
-                      <p className="text-sm font-medium text-neutral-300 flex items-center gap-2">
+                      <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                         <MapPin className="w-4 h-4" /> Dirección de envío
                       </p>
                       <button onClick={() => setStep("address")} className="text-xs text-[#C8FF00] hover:underline">
@@ -391,7 +391,7 @@ export default function Checkout() {
                       const addr = addresses.find(a => a.id === selectedAddressId);
                       if (!addr) return null;
                       return (
-                        <div className="text-sm text-neutral-400">
+                        <div className="text-sm text-muted-foreground">
                           <p>{addr.fullName}</p>
                           <p>{addr.street} {addr.streetNumber}{addr.floor ? `, ${addr.floor}` : ""}</p>
                           <p>{addr.city}, {addr.province} — CP {addr.postalCode}</p>
@@ -406,7 +406,7 @@ export default function Checkout() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setStep("address")}
-                    className="px-6 py-4 border border-white/10 rounded-xl text-neutral-400 hover:text-white transition-colors"
+                    className="px-6 py-4 border border-border rounded-xl text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Atrás
                   </button>
@@ -419,7 +419,7 @@ export default function Checkout() {
                   </button>
                 </div>
 
-                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-neutral-600">
+                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <Shield className="w-3.5 h-3.5" />
                   Pago seguro procesado por MercadoPago
                 </div>
@@ -432,7 +432,7 @@ export default function Checkout() {
                 <Loader2 className="w-12 h-12 text-[#C8FF00] animate-spin mx-auto" />
                 <div>
                   <p className="text-xl font-display font-bold">Procesando tu pedido...</p>
-                  <p className="text-sm text-neutral-500 mt-2">Te redirigiremos a MercadoPago para completar el pago</p>
+                  <p className="text-sm text-muted-foreground mt-2">Te redirigiremos a MercadoPago para completar el pago</p>
                 </div>
               </motion.div>
             )}
@@ -441,26 +441,26 @@ export default function Checkout() {
           {/* Order Summary Sidebar */}
           {step !== "processing" && (
             <div className="lg:col-span-1">
-              <div className="sticky top-28 bg-white/[0.02] border border-white/10 rounded-lg p-5 space-y-4">
+              <div className="sticky top-28 bg-card border border-border rounded-lg p-5 space-y-4">
                 <h3 className="font-display font-bold text-lg">Resumen</h3>
 
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between text-neutral-400">
+                  <div className="flex justify-between text-muted-foreground">
                     <span>Subtotal ({items.reduce((s, i) => s + i.quantity, 0)} items)</span>
                     <span>{formatPrice(totalPrice)}</span>
                   </div>
-                  <div className="flex justify-between text-neutral-400">
+                  <div className="flex justify-between text-muted-foreground">
                     <span>Envío</span>
-                    <span className="text-neutral-500">A calcular</span>
+                    <span className="text-muted-foreground">A calcular</span>
                   </div>
                 </div>
 
-                <div className="border-t border-white/10 pt-4 flex justify-between items-center">
+                <div className="border-t border-border pt-4 flex justify-between items-center">
                   <span className="font-medium">Total</span>
                   <span className="text-2xl font-bold">{formatPrice(totalPrice)}</span>
                 </div>
 
-                <p className="text-[10px] text-neutral-600 leading-tight">
+                <p className="text-[10px] text-muted-foreground leading-tight">
                   Cada marca realiza su propio envío. Podrás recibir múltiples paquetes según las marcas incluidas en tu pedido.
                 </p>
               </div>

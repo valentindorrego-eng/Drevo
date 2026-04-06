@@ -204,7 +204,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         data-testid="modal-tryon-overlay"
       >
@@ -212,22 +212,22 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-neutral-900 border border-white/10 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          className="bg-card border border-border rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
           data-testid="modal-tryon"
         >
-          <div className="flex items-center justify-between p-6 border-b border-white/10">
+          <div className="flex items-center justify-between p-6 border-b border-border">
             <div className="flex items-center gap-3">
               <div className="bg-[#C8FF00]/10 p-2 rounded-lg">
                 <Sparkles className="w-5 h-5 text-[#C8FF00]" />
               </div>
               <div>
-                <h2 className="text-lg font-display font-bold text-white">Probador Virtual</h2>
-                <p className="text-sm text-neutral-400">Visualizá cómo te queda esta prenda</p>
+                <h2 className="text-lg font-display font-bold text-foreground">Probador Virtual</h2>
+                <p className="text-sm text-muted-foreground">Visualizá cómo te queda esta prenda</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="text-neutral-400 hover:text-white transition-colors p-1"
+              className="text-muted-foreground hover:text-foreground transition-colors p-1"
               data-testid="button-close-tryon"
             >
               <X className="w-6 h-6" />
@@ -237,14 +237,14 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
           <div className="p-6 space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">Tu foto</p>
-                <div className="aspect-[3/4] bg-neutral-800 rounded-lg overflow-hidden border border-white/5 flex items-center justify-center relative">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Tu foto</p>
+                <div className="aspect-[3/4] bg-secondary rounded-lg overflow-hidden border border-border flex items-center justify-center relative">
                   {activePhoto ? (
                     <img src={activePhoto} alt="Tu foto" className="w-full h-full object-cover" data-testid="img-tryon-user" />
                   ) : (
                     <div className="text-center p-4">
-                      <Camera className="w-8 h-8 text-neutral-600 mx-auto mb-2" />
-                      <p className="text-sm text-neutral-500">Subí una foto de cuerpo completo</p>
+                      <Camera className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Subí una foto de cuerpo completo</p>
                     </div>
                   )}
                 </div>
@@ -256,7 +256,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                       className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs rounded-lg border transition-colors ${
                         photoSource === "profile"
                           ? "bg-[#C8FF00]/10 border-[#C8FF00]/30 text-[#C8FF00]"
-                          : "bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10"
+                          : "bg-card border-border text-muted-foreground hover:bg-secondary"
                       }`}
                       data-testid="button-use-profile-photo"
                     >
@@ -268,7 +268,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                       className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs rounded-lg border transition-colors ${
                         photoSource === "upload"
                           ? "bg-[#C8FF00]/10 border-[#C8FF00]/30 text-[#C8FF00]"
-                          : "bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10"
+                          : "bg-card border-border text-muted-foreground hover:bg-secondary"
                       }`}
                       data-testid="button-upload-new-photo"
                     >
@@ -281,7 +281,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                 {!profilePhoto && (
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 py-2 text-sm bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-neutral-300 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 py-2 text-sm bg-card hover:bg-secondary border border-border rounded-lg text-muted-foreground transition-colors"
                     data-testid="button-upload-tryon-photo"
                   >
                     <Upload className="w-4 h-4" />
@@ -298,17 +298,17 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                   data-testid="input-tryon-photo"
                 />
 
-                <p className="text-[10px] text-neutral-600 text-center leading-tight">
+                <p className="text-[10px] text-muted-foreground text-center leading-tight">
                   Usá una foto de cuerpo completo, de frente, con buena iluminación
                 </p>
               </div>
 
               <div className="space-y-2">
-                <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium">Producto</p>
-                <div className="aspect-[3/4] bg-neutral-800 rounded-lg overflow-hidden border border-white/5">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Producto</p>
+                <div className="aspect-[3/4] bg-secondary rounded-lg overflow-hidden border border-border">
                   <img src={productImage} alt={productTitle} className="w-full h-full object-cover" data-testid="img-tryon-product" />
                 </div>
-                <p className="text-sm text-neutral-400 truncate">{productTitle}</p>
+                <p className="text-sm text-muted-foreground truncate">{productTitle}</p>
               </div>
             </div>
 
@@ -328,10 +328,10 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
               <div className="text-center py-8 space-y-4">
                 <Loader2 className="w-10 h-10 text-[#C8FF00] animate-spin mx-auto" />
                 <div>
-                  <p className="text-white font-medium">Generando tu prueba virtual...</p>
-                  <p className="text-sm text-neutral-500 mt-1">Esto puede tardar 15-30 segundos</p>
+                  <p className="text-foreground font-medium">Generando tu prueba virtual...</p>
+                  <p className="text-sm text-muted-foreground mt-1">Esto puede tardar 15-30 segundos</p>
                 </div>
-                <div className="w-full bg-neutral-800 rounded-full h-1 overflow-hidden">
+                <div className="w-full bg-secondary rounded-full h-1 overflow-hidden">
                   <motion.div
                     className="h-full bg-[#C8FF00]"
                     initial={{ width: "0%" }}
@@ -344,8 +344,8 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
 
             {status === "done" && resultImage && (
               <div className="space-y-4">
-                <p className="text-xs text-neutral-500 uppercase tracking-wider font-medium text-center">Resultado</p>
-                <div className="aspect-[9/16] max-h-[500px] bg-neutral-800 rounded-xl overflow-hidden border border-[#C8FF00]/20 mx-auto">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium text-center">Resultado</p>
+                <div className="aspect-[9/16] max-h-[500px] bg-secondary rounded-xl overflow-hidden border border-[#C8FF00]/20 mx-auto">
                   <img src={resultImage} alt="Prueba virtual" className="w-full h-full object-contain" data-testid="img-tryon-result" />
                 </div>
                 <div className="flex gap-3">
@@ -361,7 +361,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                   <button
                     onClick={handleShare}
                     disabled={isSharing}
-                    className="flex-1 py-3 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl text-white font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    className="flex-1 py-3 bg-card hover:bg-secondary border border-border rounded-xl text-foreground font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                     data-testid="button-share-tryon"
                   >
                     <Share2 className="w-4 h-4" />
@@ -370,13 +370,13 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                 </div>
                 <button
                   onClick={handleRetry}
-                  className="w-full py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-neutral-400 text-sm flex items-center justify-center gap-2 transition-colors"
+                  className="w-full py-2.5 bg-card hover:bg-secondary border border-border rounded-xl text-muted-foreground text-sm flex items-center justify-center gap-2 transition-colors"
                   data-testid="button-retry-tryon"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   Generar de nuevo
                 </button>
-                <p className="text-xs text-neutral-600 text-center">
+                <p className="text-xs text-muted-foreground text-center">
                   Imagen generada por IA. Puede no representar fielmente el producto.
                 </p>
               </div>
@@ -387,7 +387,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
                 <p className="text-red-400">{errorMessage}</p>
                 <button
                   onClick={handleRetry}
-                  className="px-6 py-2 bg-white/10 hover:bg-white/15 rounded-lg text-white text-sm transition-colors"
+                  className="px-6 py-2 bg-card hover:bg-secondary rounded-lg text-foreground text-sm transition-colors"
                   data-testid="button-retry-tryon-error"
                 >
                   Intentar de nuevo
