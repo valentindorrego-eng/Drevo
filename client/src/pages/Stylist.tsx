@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Navigation } from "@/components/Navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
-import { Send, ImagePlus, X, Sparkles, Loader2, ExternalLink, RotateCcw } from "lucide-react";
+import { Send, ImagePlus, X, Sparkles, Loader2, ExternalLink, RotateCcw, Mic, MicOff } from "lucide-react";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -17,15 +17,22 @@ interface StylistProduct {
   externalUrl: string | null;
 }
 
+interface PendingImage {
+  base64: string;
+  preview: string;
+  mediaType: string;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  imagePreview?: string;
-  imageBase64?: string;
-  imageMediaType?: string;
+  imagePreviews?: string[];
+  images?: { base64: string; mediaType: string }[];
   products?: StylistProduct[];
 }
+
+const MAX_IMAGES = 5;
 
 const SUGGESTIONS = [
   "Armame un outfit casual para el finde",
@@ -56,22 +63,16 @@ function ProductCard({ product }: { product: StylistProduct }) {
 
 function MessageContent({ content, products }: { content: string; products?: StylistProduct[] }) {
   const productMap = new Map(products?.map(p => [p.id, p]) || []);
-
-  // Split content by [PRODUCT:id] markers
   const parts = content.split(/\[PRODUCT:([^\]]+)\]/g);
 
   return (
     <>
       {parts.map((part, i) => {
-        // Odd indices are product IDs from the regex capture group
         if (i % 2 === 1) {
           const product = productMap.get(part);
-          if (product) {
-            return <ProductCard key={`prod-${i}`} product={product} />;
-          }
-          return null; // Unknown product ID, just skip the marker
+          if (product) return <ProductCard key={`prod-${i}`} product={product} />;
+          return null;
         }
-        // Even indices are text content
         return part ? <span key={`text-${i}`}>{part}</span> : null;
       })}
     </>
@@ -86,18 +87,22 @@ export default function Stylist() {
       const saved = localStorage.getItem("drevo-stylist-chat");
       if (saved) {
         const parsed = JSON.parse(saved) as Message[];
-        // Remove imageBase64 from loaded messages to save memory (previews are kept)
-        return parsed.map(m => ({ ...m, imageBase64: undefined }));
+        return parsed.map(m => ({ ...m, images: undefined }));
       }
     } catch {}
     return [];
   });
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
-  const [pendingImage, setPendingImage] = useState<{ base64: string; preview: string; mediaType: string } | null>(null);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -105,10 +110,9 @@ export default function Stylist() {
     }
   }, [authLoading, isAuthenticated, setLocation]);
 
-  // Persist messages to localStorage (exclude base64 images to save space)
   useEffect(() => {
     if (messages.length > 0) {
-      const toSave = messages.map(m => ({ ...m, imageBase64: undefined }));
+      const toSave = messages.map(m => ({ ...m, images: undefined }));
       localStorage.setItem("drevo-stylist-chat", JSON.stringify(toSave));
     }
   }, [messages]);
@@ -118,52 +122,122 @@ export default function Stylist() {
   }, [messages]);
 
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      alert("La imagen es muy pesada (máx 10MB)");
-      return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const remaining = MAX_IMAGES - pendingImages.length;
+    const toProcess = files.slice(0, remaining);
+
+    if (files.length > remaining) {
+      alert(`Podés adjuntar hasta ${MAX_IMAGES} fotos. Se agregaron las primeras ${remaining}.`);
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const base64 = dataUrl.split(",")[1];
-      const mediaType = file.type || "image/jpeg";
-      setPendingImage({ base64, preview: dataUrl, mediaType });
-    };
-    reader.readAsDataURL(file);
+
+    toProcess.forEach(file => {
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`"${file.name}" es muy pesada (max 10MB). Se salteo.`);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const base64 = dataUrl.split(",")[1];
+        const mediaType = file.type || "image/jpeg";
+        setPendingImages(prev => {
+          if (prev.length >= MAX_IMAGES) return prev;
+          return [...prev, { base64, preview: dataUrl, mediaType }];
+        });
+      };
+      reader.readAsDataURL(file);
+    });
     e.target.value = "";
+  }, [pendingImages.length]);
+
+  // Voice recording
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+
+        if (audioBlob.size < 1000) return; // too short
+
+        try {
+          const formData = new FormData();
+          formData.append("audio", audioBlob, "recording.webm");
+          const res = await fetch("/api/stylist/transcribe", {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          });
+          if (res.ok) {
+            const { text } = await res.json();
+            if (text) setInput(prev => prev ? `${prev} ${text}` : text);
+          }
+        } catch (err) {
+          console.error("Transcription error:", err);
+        }
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error("Microphone access denied:", err);
+      alert("No se pudo acceder al micrófono. Revisá los permisos del navegador.");
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    setRecordingTime(0);
   }, []);
 
   const sendMessage = useCallback(async (text?: string) => {
     const content = text || input.trim();
-    if (!content && !pendingImage) return;
+    if (!content && pendingImages.length === 0) return;
     if (isStreaming) return;
 
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: content || "¿Qué me podés decir de esta prenda?",
-      imagePreview: pendingImage?.preview,
-      imageBase64: pendingImage?.base64,
-      imageMediaType: pendingImage?.mediaType,
+      content: content || (pendingImages.length > 1 ? "¿Qué me podés decir de estas prendas? ¿Cómo las combino?" : "¿Qué me podés decir de esta prenda?"),
+      imagePreviews: pendingImages.length > 0 ? pendingImages.map(img => img.preview) : undefined,
+      images: pendingImages.length > 0 ? pendingImages.map(img => ({ base64: img.base64, mediaType: img.mediaType })) : undefined,
     };
 
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
-    setPendingImage(null);
+    setPendingImages([]);
     setIsStreaming(true);
 
     const assistantId = (Date.now() + 1).toString();
     setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "" }]);
 
     try {
-      // Build API messages (without previews)
       const apiMessages = newMessages.map(m => ({
         role: m.role,
         content: m.content,
-        ...(m.imageBase64 ? { imageBase64: m.imageBase64, imageMediaType: m.imageMediaType } : {}),
+        ...(m.images?.length ? { images: m.images } : {}),
       }));
 
       const response = await fetch("/api/stylist/chat", {
@@ -208,7 +282,7 @@ export default function Stylist() {
                   );
                 }
                 if (parsed.error) {
-                  fullText += `\n\n⚠️ ${parsed.error}`;
+                  fullText += `\n\n${parsed.error}`;
                   setMessages(prev =>
                     prev.map(m => m.id === assistantId ? { ...m, content: fullText } : m)
                   );
@@ -225,7 +299,7 @@ export default function Stylist() {
     } finally {
       setIsStreaming(false);
     }
-  }, [input, pendingImage, messages, isStreaming]);
+  }, [input, pendingImages, messages, isStreaming]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -240,7 +314,6 @@ export default function Stylist() {
     <div className="min-h-screen bg-background flex flex-col">
       <Navigation />
       <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full pt-20 pb-4 px-4">
-        {/* New chat button when there are messages */}
         {messages.length > 0 && (
           <div className="flex justify-end py-2">
             <button
@@ -252,7 +325,6 @@ export default function Stylist() {
             </button>
           </div>
         )}
-        {/* Messages area */}
         <div className="flex-1 overflow-y-auto space-y-4 pb-4">
           {messages.length === 0 && (
             <motion.div
@@ -267,7 +339,7 @@ export default function Stylist() {
                 Tu Estilista Personal
               </h1>
               <p className="text-muted-foreground max-w-md mb-8">
-                Contame qué buscás vestir, mandame una foto de tu armario, o pedime que te arme un outfit. Conozco todo el catálogo de DREVO.
+                Contame que buscas vestir, mandame fotos de tu armario, o pedime que te arme un outfit. Conozco todo el catalogo de DREVO.
               </p>
               <div className="flex flex-wrap gap-2 justify-center max-w-lg">
                 {SUGGESTIONS.map((s) => (
@@ -302,12 +374,17 @@ export default function Stylist() {
                       : "bg-card border border-border text-foreground rounded-bl-md"
                   )}
                 >
-                  {msg.imagePreview && (
-                    <img
-                      src={msg.imagePreview}
-                      alt="Foto subida"
-                      className="max-w-[200px] rounded-lg mb-2"
-                    />
+                  {msg.imagePreviews && msg.imagePreviews.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {msg.imagePreviews.map((preview, idx) => (
+                        <img
+                          key={idx}
+                          src={preview}
+                          alt={`Foto ${idx + 1}`}
+                          className="max-w-[140px] max-h-[140px] rounded-lg object-cover"
+                        />
+                      ))}
+                    </div>
                   )}
                   <div className="text-sm whitespace-pre-wrap leading-relaxed space-y-2">
                     {msg.role === "assistant" && msg.products?.length ? (
@@ -328,15 +405,27 @@ export default function Stylist() {
 
         {/* Input area */}
         <div className="sticky bottom-0 bg-background pt-2">
-          {pendingImage && (
-            <div className="relative inline-block mb-2">
-              <img src={pendingImage.preview} alt="Preview" className="h-20 rounded-lg border border-border" />
-              <button
-                onClick={() => setPendingImage(null)}
-                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
-              >
-                <X className="w-3 h-3 text-white" />
-              </button>
+          {pendingImages.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {pendingImages.map((img, idx) => (
+                <div key={idx} className="relative inline-block">
+                  <img src={img.preview} alt={`Preview ${idx + 1}`} className="h-20 rounded-lg border border-border" />
+                  <button
+                    onClick={() => setPendingImages(prev => prev.filter((_, i) => i !== idx))}
+                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center"
+                  >
+                    <X className="w-3 h-3 text-white" />
+                  </button>
+                </div>
+              ))}
+              {pendingImages.length < MAX_IMAGES && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-20 w-20 rounded-lg border border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                >
+                  <ImagePlus className="w-5 h-5" />
+                </button>
+              )}
             </div>
           )}
           <div className="flex items-end gap-2 bg-card border border-border rounded-2xl p-2">
@@ -344,32 +433,53 @@ export default function Stylist() {
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
               onChange={handleImageUpload}
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors shrink-0"
-              title="Subir foto de tu armario"
+              disabled={pendingImages.length >= MAX_IMAGES}
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors shrink-0 disabled:opacity-30"
+              title={`Subir fotos (${pendingImages.length}/${MAX_IMAGES})`}
             >
               <ImagePlus className="w-5 h-5" />
             </button>
+            <button
+              onClick={isRecording ? stopRecording : startRecording}
+              disabled={isStreaming}
+              className={cn(
+                "p-2 transition-colors shrink-0",
+                isRecording
+                  ? "text-red-500 animate-pulse"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              title={isRecording ? "Parar grabacion" : "Grabar audio"}
+            >
+              {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </button>
+            {isRecording && (
+              <span className="text-xs text-red-500 font-mono shrink-0 py-2">
+                {Math.floor(recordingTime / 60)}:{String(recordingTime % 60).padStart(2, "0")}
+              </span>
+            )}
             <textarea
               ref={textareaRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Escribí lo que necesitás..."
+              placeholder={isRecording ? "Grabando..." : "Escribi lo que necesitas..."}
               rows={1}
-              className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground text-sm resize-none outline-none py-2 max-h-32"
+              disabled={isRecording}
+              className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground text-sm resize-none outline-none py-2 max-h-32 disabled:opacity-50"
               style={{ minHeight: "36px" }}
             />
             <button
               onClick={() => sendMessage()}
-              disabled={isStreaming || (!input.trim() && !pendingImage)}
+              disabled={isStreaming || (!input.trim() && pendingImages.length === 0)}
               className={cn(
                 "p-2 rounded-xl transition-colors shrink-0",
-                isStreaming || (!input.trim() && !pendingImage)
+                isStreaming || (!input.trim() && pendingImages.length === 0)
                   ? "text-muted-foreground"
                   : "bg-accent text-black hover:bg-accent/80"
               )}

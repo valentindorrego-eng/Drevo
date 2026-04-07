@@ -1848,6 +1848,141 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
     }
   });
 
+  // ─── Brand Dashboard ───
+
+  app.get("/api/brand/dashboard", requireAuth, async (req, res) => {
+    try {
+      // Get all integrations for this user (for now, all integrations since they're not user-scoped)
+      const userIntegrations = await db.select().from(brandIntegrations);
+      if (userIntegrations.length === 0) {
+        return res.json({ hasBrand: false });
+      }
+
+      const brandIds = userIntegrations.map(i => i.brandId).filter(Boolean) as string[];
+
+      // Get products for these brands
+      const brandProducts = brandIds.length > 0
+        ? await db.select({
+            id: products.id,
+            title: products.title,
+            brandId: products.brandId,
+            status: products.status,
+            basePrice: products.basePrice,
+            salePrice: products.salePrice,
+          }).from(products).where(sql`${products.brandId} = ANY(${brandIds})`)
+        : [];
+
+      const activeProducts = brandProducts.filter(p => p.status === "active");
+
+      // Get clicks for these brands
+      const clicksData = brandIds.length > 0
+        ? await pool.query(
+            `SELECT
+              pc.product_id,
+              pc.query_text,
+              pc.status,
+              pc.commission_amount,
+              pc.clicked_at,
+              p.title as product_title
+            FROM product_clicks pc
+            LEFT JOIN products p ON p.id = pc.product_id
+            WHERE pc.brand_id = ANY($1)
+            ORDER BY pc.clicked_at DESC`,
+            [brandIds]
+          )
+        : { rows: [] };
+
+      const clicks = clicksData.rows;
+      const totalClicks = clicks.length;
+      const conversions = clicks.filter((c: any) => c.status === "converted");
+      const totalConversions = conversions.length;
+      const totalRevenue = conversions.reduce((sum: number, c: any) => sum + parseFloat(c.commission_amount || "0"), 0);
+      const conversionRate = totalClicks > 0 ? (totalConversions / totalClicks * 100) : 0;
+
+      // Top products by clicks
+      const productClickCounts: Record<string, { title: string; clicks: number; conversions: number }> = {};
+      for (const click of clicks) {
+        const pid = (click as any).product_id;
+        if (!productClickCounts[pid]) {
+          productClickCounts[pid] = { title: (click as any).product_title || "Producto", clicks: 0, conversions: 0 };
+        }
+        productClickCounts[pid].clicks++;
+        if ((click as any).status === "converted") productClickCounts[pid].conversions++;
+      }
+      const topProducts = Object.entries(productClickCounts)
+        .sort((a, b) => b[1].clicks - a[1].clicks)
+        .slice(0, 10)
+        .map(([id, data]) => ({ id, ...data }));
+
+      // Top search queries that led to clicks
+      const queryClickCounts: Record<string, { clicks: number; conversions: number }> = {};
+      for (const click of clicks) {
+        const q = (click as any).query_text;
+        if (!q) continue;
+        if (!queryClickCounts[q]) queryClickCounts[q] = { clicks: 0, conversions: 0 };
+        queryClickCounts[q].clicks++;
+        if ((click as any).status === "converted") queryClickCounts[q].conversions++;
+      }
+      const topQueries = Object.entries(queryClickCounts)
+        .sort((a, b) => b[1].clicks - a[1].clicks)
+        .slice(0, 10)
+        .map(([query, data]) => ({ query, ...data }));
+
+      // Clicks by day (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentClicks = clicks.filter((c: any) => new Date(c.clicked_at) >= thirtyDaysAgo);
+      const clicksByDay: Record<string, number> = {};
+      for (const click of recentClicks) {
+        const day = new Date((click as any).clicked_at).toISOString().slice(0, 10);
+        clicksByDay[day] = (clicksByDay[day] || 0) + 1;
+      }
+
+      // Get brand names
+      const brandNames = brandIds.length > 0
+        ? await db.select({ id: brands.id, name: brands.name }).from(brands).where(sql`${brands.id} = ANY(${brandIds})`)
+        : [];
+
+      // Get product images for top products
+      const topProductIds = topProducts.map(p => p.id);
+      const topProductImages = topProductIds.length > 0
+        ? await db.select({ productId: productImages.productId, url: productImages.url, position: productImages.position })
+            .from(productImages)
+            .where(sql`${productImages.productId} = ANY(${topProductIds})`)
+        : [];
+      const imageMap: Record<string, string> = {};
+      for (const img of topProductImages) {
+        if (img.productId && (!imageMap[img.productId] || (img.position || 0) === 0)) {
+          imageMap[img.productId] = img.url;
+        }
+      }
+
+      res.json({
+        hasBrand: true,
+        brands: brandNames,
+        overview: {
+          totalProducts: activeProducts.length,
+          totalClicks,
+          totalConversions,
+          totalRevenue: totalRevenue.toFixed(2),
+          conversionRate: conversionRate.toFixed(1),
+        },
+        topProducts: topProducts.map(p => ({ ...p, imageUrl: imageMap[p.id] || null })),
+        topQueries,
+        clicksByDay,
+        integrations: userIntegrations.map(i => ({
+          id: i.id,
+          provider: i.provider,
+          storeId: i.storeId,
+          storeName: i.storeName,
+        })),
+      });
+    } catch (error) {
+      console.error("Brand dashboard error:", error);
+      res.status(500).json({ message: "Error al obtener dashboard" });
+    }
+  });
+
   // ─── Style Passport Routes ───
 
   app.post("/api/user/style-passport", requireAuth, async (req, res) => {
@@ -2042,6 +2177,34 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
   const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY }) : null;
 
+  // Audio transcription for stylist voice input
+  const audioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+
+  app.post("/api/stylist/transcribe", requireAuth, audioUpload.single("audio"), async (req, res) => {
+    if (!openai) {
+      return res.status(503).json({ message: "Transcripcion no disponible" });
+    }
+    try {
+      const file = (req as any).file;
+      if (!file) return res.status(400).json({ message: "No audio file" });
+
+      const tempPath = path.join("/tmp", `audio-${Date.now()}.webm`);
+      fs.writeFileSync(tempPath, file.buffer);
+
+      const transcription = await openai.audio.transcriptions.create({
+        model: "whisper-1",
+        file: fs.createReadStream(tempPath),
+        language: "es",
+      });
+
+      fs.unlinkSync(tempPath);
+      res.json({ text: transcription.text });
+    } catch (error: any) {
+      console.error("Transcription error:", error);
+      res.status(500).json({ message: "Error en transcripcion" });
+    }
+  });
+
   app.post("/api/stylist/chat", requireAuth, async (req, res) => {
     if (!anthropic) {
       return res.status(503).json({ message: "AI Stylist no disponible (falta ANTHROPIC_API_KEY)" });
@@ -2049,7 +2212,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
     try {
       const user = getAuthUser(req);
-      const { messages, imageBase64 } = req.body;
+      const { messages } = req.body;
 
       if (!messages || !Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ message: "Mensajes requeridos" });
@@ -2141,34 +2304,19 @@ FORMATO:
 - Si el usuario manda una foto de su ropa, describí lo que ves y sugerí combinaciones.
 - Usá emojis con moderación para ser amigable pero no exagerar.${styleContext}${catalogContext}`;
 
-      // Build messages for Claude
+      // Build messages for Claude (supports multiple images per message)
       const claudeMessages: Anthropic.MessageParam[] = messages.map((m: any) => {
-        if (m.role === "user" && m.imageBase64) {
-          return {
-            role: "user" as const,
-            content: [
-              { type: "image" as const, source: { type: "base64" as const, media_type: m.imageMediaType || "image/jpeg", data: m.imageBase64 } },
-              { type: "text" as const, text: m.content || "¿Qué me podés decir de estas prendas? ¿Cómo las combino?" }
-            ]
-          };
+        const imgs = m.images || (m.imageBase64 ? [{ base64: m.imageBase64, mediaType: m.imageMediaType || "image/jpeg" }] : []);
+        if (m.role === "user" && imgs.length > 0) {
+          const content: any[] = imgs.map((img: any) => ({
+            type: "image" as const,
+            source: { type: "base64" as const, media_type: img.mediaType || "image/jpeg", data: img.base64 }
+          }));
+          content.push({ type: "text" as const, text: m.content || "¿Qué me podés decir de estas prendas? ¿Cómo las combino?" });
+          return { role: "user" as const, content };
         }
         return { role: m.role as "user" | "assistant", content: m.content };
       });
-
-      // If current message has an image attachment
-      if (imageBase64 && claudeMessages.length > 0) {
-        const lastIdx = claudeMessages.length - 1;
-        const lastMsg = claudeMessages[lastIdx];
-        if (typeof lastMsg.content === "string") {
-          claudeMessages[lastIdx] = {
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageBase64 } },
-              { type: "text", text: lastMsg.content || "¿Qué me podés decir de estas prendas? ¿Cómo las combino?" }
-            ]
-          };
-        }
-      }
 
       // Stream response
       res.setHeader("Content-Type", "text/event-stream");

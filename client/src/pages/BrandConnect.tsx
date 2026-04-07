@@ -2,8 +2,8 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Navigation } from "@/components/Navigation";
-import { CheckCircle2, AlertCircle, Loader2, Store, RefreshCw, Plug, Plus } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, AlertCircle, Loader2, Store, RefreshCw, Plug, Plus, Clock } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface Integration {
@@ -21,7 +21,10 @@ export default function BrandConnect() {
   const errorDetail = searchParams.get("detail");
 
   const [syncResults, setSyncResults] = useState<Record<string, { synced: number; errors: string[] }>>({});
+  const [syncErrors, setSyncErrors] = useState<Record<string, string>>({});
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncElapsed, setSyncElapsed] = useState(0);
+  const syncTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const { data, isLoading } = useQuery<{ integrations: Integration[] }>({
     queryKey: ["/api/integrations"],
@@ -30,15 +33,37 @@ export default function BrandConnect() {
   const integrations = data?.integrations ?? [];
   const tiendanubeIntegrations = integrations.filter(i => i.provider === "tiendanube");
 
+  // Timer for sync elapsed time
+  useEffect(() => {
+    if (syncingId) {
+      setSyncElapsed(0);
+      syncTimerRef.current = setInterval(() => {
+        setSyncElapsed(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (syncTimerRef.current) {
+        clearInterval(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
+    }
+    return () => {
+      if (syncTimerRef.current) clearInterval(syncTimerRef.current);
+    };
+  }, [syncingId]);
+
   const syncMutation = useMutation({
     mutationFn: async (integrationId: string) => {
       setSyncingId(integrationId);
+      setSyncErrors(prev => { const n = { ...prev }; delete n[integrationId]; return n; });
       const res = await apiRequest("POST", `/api/integrations/${integrationId}/sync-products`);
       return { id: integrationId, result: await res.json() };
     },
     onSuccess: ({ id, result }) => {
       setSyncResults(prev => ({ ...prev, [id]: result }));
       queryClient.invalidateQueries({ queryKey: ["/api/integrations"] });
+    },
+    onError: (error: any, integrationId: string) => {
+      setSyncErrors(prev => ({ ...prev, [integrationId]: error.message || "Error al sincronizar" }));
     },
     onSettled: () => {
       setSyncingId(null);
@@ -47,6 +72,12 @@ export default function BrandConnect() {
 
   const handleConnect = () => {
     window.location.href = "/auth/tiendanube/start";
+  };
+
+  const formatElapsed = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
   };
 
   return (
@@ -61,14 +92,14 @@ export default function BrandConnect() {
           className="space-y-10"
         >
           <div className="space-y-2">
-            <p className="text-xs font-medium tracking-widest uppercase text-accent bg-foreground inline-block px-2 py-0.5 rounded">
+            <p className="text-xs font-medium tracking-widest uppercase text-accent bg-accent/10 inline-block px-2 py-0.5 rounded">
               Integraciones
             </p>
             <h1 className="text-4xl font-display font-bold tracking-tight">
-              Conectá tu tienda
+              Conecta tu tienda
             </h1>
             <p className="text-muted-foreground text-base leading-relaxed">
-              Conectá tu catálogo de Tiendanube para que tus productos aparezcan en DREVO con búsqueda semántica AI.
+              Conecta tu catalogo de Tiendanube para que tus productos aparezcan en DREVO con busqueda semantica AI.
             </p>
           </div>
 
@@ -76,11 +107,11 @@ export default function BrandConnect() {
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-3 bg-foreground border border-accent/30 rounded-xl px-4 py-3"
+              className="flex items-center gap-3 bg-accent/10 border border-accent/30 rounded-xl px-4 py-3"
             >
               <CheckCircle2 className="w-5 h-5 text-accent shrink-0" />
-              <span className="text-sm text-accent">
-                ¡Tienda {connectedStoreId ? `(ID: ${connectedStoreId})` : ""} conectada exitosamente! Ahora podés sincronizar tus productos.
+              <span className="text-sm text-foreground">
+                Tienda {connectedStoreId ? `(ID: ${connectedStoreId})` : ""} conectada exitosamente! Ahora podes sincronizar tus productos.
               </span>
             </motion.div>
           )}
@@ -102,7 +133,7 @@ export default function BrandConnect() {
                 </p>
               )}
               <p className="text-xs text-red-400/70 pl-7">
-                Revisá que la URL de callback en el DevHub de Tiendanube sea exactamente: <br/>
+                Revisa que la URL de callback en el DevHub de Tiendanube sea exactamente: <br/>
                 <code className="font-mono">{window.location.origin}/auth/tiendanube/callback</code>
               </p>
             </motion.div>
@@ -120,7 +151,7 @@ export default function BrandConnect() {
                     <p className="text-xs text-muted-foreground">Store ID: <span className="text-foreground font-mono">{integration.storeId}</span></p>
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-accent bg-foreground px-3 py-1 rounded-full border border-accent/20">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-accent bg-accent/10 px-3 py-1 rounded-full border border-accent/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent inline-block" />
                   Conectado
                 </span>
@@ -132,7 +163,7 @@ export default function BrandConnect() {
                     onClick={() => syncMutation.mutate(integration.id)}
                     disabled={syncingId !== null}
                     data-testid={`button-sync-${integration.storeId}`}
-                    className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-foreground border border-accent/40 text-accent text-sm font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-accent/10 border border-accent/40 text-accent text-sm font-semibold hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {syncingId === integration.id ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -143,13 +174,47 @@ export default function BrandConnect() {
                   </button>
                 </div>
 
-                {syncResults[integration.id] && (
+                {syncingId === integration.id && (
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-2 rounded-xl bg-card border border-border px-4 py-3 space-y-1"
+                    className="rounded-xl bg-accent/5 border border-accent/20 px-4 py-3 space-y-2"
                   >
-                    <p className="text-sm font-medium text-foreground">Sincronización completada</p>
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-accent" />
+                      <span className="text-sm font-medium text-foreground">Sincronizando... {formatElapsed(syncElapsed)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Estamos importando productos, analizando imagenes y generando embeddings. Esto puede tardar varios minutos dependiendo de la cantidad de productos. No cierres esta pagina.
+                    </p>
+                    <div className="w-full h-1 bg-border rounded-full overflow-hidden">
+                      <div className="h-full bg-accent rounded-full animate-pulse" style={{ width: "60%" }} />
+                    </div>
+                  </motion.div>
+                )}
+
+                {syncErrors[integration.id] && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-3 space-y-1"
+                  >
+                    <p className="text-sm font-medium text-red-400">Error en sincronizacion</p>
+                    <p className="text-xs text-red-400/70">{syncErrors[integration.id]}</p>
+                    <p className="text-xs text-muted-foreground">Podes intentarlo de nuevo.</p>
+                  </motion.div>
+                )}
+
+                {syncResults[integration.id] && !syncingId && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl bg-accent/5 border border-accent/20 px-4 py-3 space-y-1"
+                  >
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-accent" />
+                      <p className="text-sm font-medium text-foreground">Sincronizacion completada</p>
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {syncResults[integration.id].synced} producto{syncResults[integration.id].synced !== 1 ? "s" : ""} importado{syncResults[integration.id].synced !== 1 ? "s" : ""}
                       {syncResults[integration.id].errors.length > 0 && ` · ${syncResults[integration.id].errors.length} errores`}
@@ -200,9 +265,9 @@ export default function BrandConnect() {
           </button>
 
           <div className="text-xs text-muted-foreground space-y-1 leading-relaxed">
-            <p>Al conectar tu tienda, DREVO importa tu catálogo y genera embeddings semánticos para cada producto.</p>
-            <p>La sincronización es idempotente: podés ejecutarla varias veces sin duplicar productos.</p>
-            <p>Para conectar otra tienda, asegurate de cerrar sesión en Tiendanube primero, o usá una ventana de incógnito.</p>
+            <p>Al conectar tu tienda, DREVO importa tu catalogo y genera embeddings semanticos para cada producto.</p>
+            <p>La sincronizacion es idempotente: podes ejecutarla varias veces sin duplicar productos.</p>
+            <p>Para conectar otra tienda, asegurate de cerrar sesion en Tiendanube primero, o usa una ventana de incognito.</p>
           </div>
         </motion.div>
       </div>

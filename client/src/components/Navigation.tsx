@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { ShoppingBag, Menu, X, Plug, UserCircle, Bookmark, Fingerprint, Package, Sun, Moon, Sparkles } from "lucide-react";
+import { ShoppingBag, Menu, X, Plug, UserCircle, Bookmark, Fingerprint, Package, Sun, Moon, Sparkles, BarChart3 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
@@ -30,6 +30,7 @@ export function Navigation() {
     ...(isAuthenticated ? [{ href: "/style-passport", label: "Style Passport" }] : []),
     ...(isAuthenticated ? [{ href: "/stylist", label: "Mi Estilista" }] : []),
     { href: "/connect", label: "Conectar tienda" },
+    { href: "/brand", label: "Dashboard" },
     { href: "/cart", label: `Carrito${totalItems > 0 ? ` (${totalItems})` : ""}` },
     { href: isAuthenticated ? "/profile" : "/auth", label: isAuthenticated ? (user?.displayName || "Mi cuenta") : "Entrar" },
   ];
@@ -38,7 +39,7 @@ export function Navigation() {
     <header
       className={cn(
         "fixed top-0 left-0 right-0 z-50 transition-all duration-500 border-b border-transparent",
-        isScrolled ? "bg-background/60 backdrop-blur-xl backdrop-saturate-150 border-border/50 py-3 shadow-2xl" : "bg-transparent py-5"
+        mobileMenuOpen ? "bg-background py-3" : isScrolled ? "bg-background/60 backdrop-blur-xl backdrop-saturate-150 border-border/50 py-3 shadow-2xl" : "bg-transparent py-5"
       )}
     >
       <div className="container mx-auto px-4 flex items-center justify-between">
@@ -99,6 +100,13 @@ export function Navigation() {
               )}
             </Link>
           )}
+          <Link href="/brand" data-testid="link-nav-brand" className={cn(
+            "text-sm font-medium transition-colors hover:text-foreground flex items-center gap-1.5",
+            location === "/brand" ? "text-foreground" : "text-muted-foreground"
+          )}>
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>Dashboard</span>
+          </Link>
           <button
             onClick={toggleTheme}
             className="text-muted-foreground hover:text-foreground transition-colors p-1"
@@ -165,7 +173,7 @@ export function Navigation() {
         </div>
 
         <div className={cn(
-          "fixed inset-0 bg-background backdrop-blur-xl z-40 flex flex-col justify-center items-center gap-6 transition-all duration-300 md:hidden",
+          "fixed inset-0 bg-background z-40 flex flex-col justify-center items-center gap-6 transition-all duration-300 md:hidden overflow-y-auto",
           mobileMenuOpen ? "opacity-100 translate-x-0" : "opacity-0 translate-x-full pointer-events-none"
         )}>
           {links.map((link) => (
