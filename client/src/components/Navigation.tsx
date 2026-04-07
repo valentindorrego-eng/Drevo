@@ -138,6 +138,13 @@ export function Navigation() {
         </nav>
 
         <div className="md:hidden flex items-center gap-4 z-50 relative">
+          <button
+            onClick={toggleTheme}
+            className="text-muted-foreground hover:text-foreground transition-colors p-1"
+            aria-label={theme === "dark" ? "Modo claro" : "Modo oscuro"}
+          >
+            {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
           <Link href="/cart" className="relative" aria-label="Carrito">
             <ShoppingBag className="w-5 h-5 text-foreground" />
             {totalItems > 0 && (

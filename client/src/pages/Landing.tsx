@@ -147,7 +147,7 @@ export default function Landing() {
             transition={{ duration: 0.6 }}
             className="space-y-4"
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-accent/20 bg-foreground text-xs font-medium text-accent mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/30 bg-accent/10 text-xs font-medium text-accent mb-4">
               <Sparkles className="w-3 h-3" />
               <span>Fashion Intelligence Engine</span>
             </div>
