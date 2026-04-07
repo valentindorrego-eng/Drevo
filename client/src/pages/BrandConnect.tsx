@@ -21,6 +21,7 @@ export default function BrandConnect() {
   const errorDetail = searchParams.get("detail");
 
   const [syncResults, setSyncResults] = useState<Record<string, { synced: number; errors: string[] }>>({});
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<{ integrations: Integration[] }>({
     queryKey: ["/api/integrations"],
@@ -31,12 +32,16 @@ export default function BrandConnect() {
 
   const syncMutation = useMutation({
     mutationFn: async (integrationId: string) => {
+      setSyncingId(integrationId);
       const res = await apiRequest("POST", `/api/integrations/${integrationId}/sync-products`);
       return { id: integrationId, result: await res.json() };
     },
     onSuccess: ({ id, result }) => {
       setSyncResults(prev => ({ ...prev, [id]: result }));
       queryClient.invalidateQueries({ queryKey: ["/api/integrations"] });
+    },
+    onSettled: () => {
+      setSyncingId(null);
     },
   });
 
@@ -125,16 +130,16 @@ export default function BrandConnect() {
                 <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={() => syncMutation.mutate(integration.id)}
-                    disabled={syncMutation.isPending}
+                    disabled={syncingId !== null}
                     data-testid={`button-sync-${integration.storeId}`}
                     className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-foreground border border-accent/40 text-accent text-sm font-semibold hover:bg-foreground/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {syncMutation.isPending ? (
+                    {syncingId === integration.id ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <RefreshCw className="w-4 h-4" />
                     )}
-                    {syncMutation.isPending ? "Sincronizando..." : "Sincronizar productos"}
+                    {syncingId === integration.id ? "Sincronizando..." : "Sincronizar productos"}
                   </button>
                 </div>
 
