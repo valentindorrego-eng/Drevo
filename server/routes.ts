@@ -2503,7 +2503,7 @@ FORMATO:
     }
   });
 
-  app.get("/api/admin/scrape/status", requireAuth, async (req, res) => {
+  app.get("/api/admin/scrape/status", async (req, res) => {
     try {
       // Count scraped products by brand
       const result = await pool.query(`
