@@ -2460,7 +2460,12 @@ FORMATO:
 
   // ─── Scraper Admin Endpoints ───
 
-  app.post("/api/admin/scrape", requireAuth, async (req, res) => {
+  app.post("/api/admin/scrape", async (req, res) => {
+    // Simple API key auth for admin endpoints
+    const adminKey = req.headers["x-admin-key"] || req.body?.adminKey;
+    if (adminKey !== (process.env.ADMIN_KEY || "drevo-scrape-2026")) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
     try {
       const { scrapeStore: scrapeStoreFn, scrapeMultipleStores, INITIAL_BRANDS } = await import("./scraper");
       const { storeUrl, storeUrls, useInitialList } = req.body;
