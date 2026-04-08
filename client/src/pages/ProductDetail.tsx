@@ -81,11 +81,21 @@ export default function ProductDetail() {
     }
   };
 
-  const handleExternalClick = async (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleExternalClick = (e: React.MouseEvent) => {
     if (!product?.externalUrl) return;
-    const referralUrl = await trackClick(id);
-    window.open(referralUrl || product.externalUrl, "_blank", "noopener,noreferrer");
+    // Open window synchronously to avoid popup blocker
+    const win = window.open("about:blank", "_blank", "noopener,noreferrer");
+    // Track click async and update URL
+    trackClick(id).then((referralUrl) => {
+      const url = referralUrl || product.externalUrl!;
+      if (win) {
+        win.location.href = url;
+      } else {
+        // Fallback if popup was blocked
+        window.location.href = url;
+      }
+    });
+    e.preventDefault();
   };
 
   const handleSearchSimilar = () => {
@@ -132,10 +142,22 @@ export default function ProductDetail() {
   const images = product.images || [];
   const currentImage = images[selectedImageIdx]?.url || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=1200";
 
+  const allOutOfStock = hasVariants && variants.every((v: any) => v.stockQty <= 0);
+  const selectedVariant = selectedSize ? variants.find((v: any) => (v.sizeLabel || v.size_label) === selectedSize) : null;
+  const selectedOutOfStock = selectedVariant && selectedVariant.stockQty <= 0;
+
   const handleAddToCart = () => {
+    if (allOutOfStock) {
+      toast({ title: "Sin stock", description: "Este producto no tiene stock disponible en ningún talle.", variant: "destructive" });
+      return;
+    }
     const sizeToUse = hasVariants ? selectedSize : "Único";
     if (!sizeToUse) {
       toast({ title: "Seleccioná un talle", description: "Elegí tu talle antes de agregar al carrito.", variant: "destructive" });
+      return;
+    }
+    if (selectedOutOfStock) {
+      toast({ title: "Sin stock", description: `El talle ${sizeToUse} no tiene stock. Probá con otro.`, variant: "destructive" });
       return;
     }
     const selectedSizeResolved = sizeToUse;
