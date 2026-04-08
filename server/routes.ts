@@ -2373,8 +2373,10 @@ FORMATO:
         res.write(`data: ${JSON.stringify({ products: stylistProducts })}\n\n`);
       }
 
+      const stylistModel = process.env.ANTHROPIC_STYLIST_MODEL || "claude-sonnet-4-20250514";
+      console.log(`[Stylist] Using model: ${stylistModel}, messages: ${claudeMessages.length}`);
       const stream = anthropic.messages.stream({
-        model: process.env.ANTHROPIC_STYLIST_MODEL || "claude-sonnet-4-20250514",
+        model: stylistModel,
         max_tokens: 1024,
         system: systemPrompt,
         messages: claudeMessages,
@@ -2389,9 +2391,13 @@ FORMATO:
       res.write(`data: [DONE]\n\n`);
       res.end();
     } catch (error: any) {
-      console.error("Stylist error:", error);
+      console.error("Stylist error:", error?.message || error, error?.status, error?.error);
       if (!res.headersSent) {
-        res.status(500).json({ message: "Error del estilista AI" });
+        const msg = error?.status === 401 ? "API key de Anthropic inválida"
+          : error?.status === 429 ? "Límite de la API de Anthropic alcanzado"
+          : error?.message?.includes("model") ? `Modelo no encontrado: ${error.message}`
+          : "Error del estilista AI";
+        res.status(500).json({ message: msg });
       } else {
         res.write(`data: ${JSON.stringify({ error: "Error del estilista" })}\n\n`);
         res.end();
