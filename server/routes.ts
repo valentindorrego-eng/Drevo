@@ -2355,6 +2355,71 @@ FORMATO:
     }
   });
 
+  // ─── Scraper Admin Endpoints ───
+
+  app.post("/api/admin/scrape", requireAuth, async (req, res) => {
+    try {
+      const { scrapeStore: scrapeStoreFn, scrapeMultipleStores, INITIAL_BRANDS } = await import("./scraper");
+      const { storeUrl, storeUrls, useInitialList } = req.body;
+
+      if (useInitialList) {
+        // Scrape all initial brands (async, respond immediately)
+        const urls = INITIAL_BRANDS.map((b: { url: string }) => b.url);
+        res.json({ message: `Scraping ${urls.length} stores in background`, stores: INITIAL_BRANDS.map((b: { name: string }) => b.name) });
+        scrapeMultipleStores(urls).then(results => {
+          console.log("[Scraper] Batch complete:", results.map(r => `${r.storeName}: ${r.synced}/${r.totalFound}`).join(", "));
+        }).catch(err => console.error("[Scraper] Batch error:", err));
+        return;
+      }
+
+      if (storeUrls && Array.isArray(storeUrls)) {
+        res.json({ message: `Scraping ${storeUrls.length} stores in background` });
+        scrapeMultipleStores(storeUrls).then(results => {
+          console.log("[Scraper] Batch complete:", results.map(r => `${r.storeName}: ${r.synced}/${r.totalFound}`).join(", "));
+        }).catch(err => console.error("[Scraper] Batch error:", err));
+        return;
+      }
+
+      if (storeUrl) {
+        res.json({ message: `Scraping ${storeUrl} in background` });
+        scrapeStoreFn(storeUrl).then(result => {
+          console.log(`[Scraper] Done: ${result.storeName}: ${result.synced}/${result.totalFound} products`);
+        }).catch(err => console.error("[Scraper] Error:", err));
+        return;
+      }
+
+      res.status(400).json({ message: "Provide storeUrl, storeUrls[], or useInitialList: true" });
+    } catch (err: any) {
+      console.error("Scrape error:", err);
+      res.status(500).json({ message: "Error al iniciar scraping", error: err.message });
+    }
+  });
+
+  app.get("/api/admin/scrape/status", requireAuth, async (req, res) => {
+    try {
+      // Count scraped products by brand
+      const result = await pool.query(`
+        SELECT b.name, b.slug, COUNT(p.id) as product_count, MAX(p.updated_at) as last_updated
+        FROM brands b
+        JOIN products p ON p.brand_id = b.id
+        WHERE p.external_provider = 'tiendanube_scraped'
+        GROUP BY b.id, b.name, b.slug
+        ORDER BY product_count DESC
+      `);
+
+      const totalScraped = await pool.query(`
+        SELECT COUNT(*) as total FROM products WHERE external_provider = 'tiendanube_scraped'
+      `);
+
+      res.json({
+        totalScrapedProducts: parseInt(totalScraped.rows[0]?.total || "0"),
+        brands: result.rows,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   seedDatabase().catch(console.error);
   return httpServer;
 }
