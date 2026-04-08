@@ -21,6 +21,7 @@ import Order from "@/pages/Order";
 import Orders from "@/pages/Orders";
 import Stylist from "@/pages/Stylist";
 import BrandDashboard from "@/pages/BrandDashboard";
+import Admin from "@/pages/Admin";
 import NotFound from "@/pages/not-found";
 
 const PageTransition = ({ children }: { children: React.ReactNode }) => (
@@ -54,6 +55,7 @@ function Router() {
           <Route path="/order/:id" component={Order} />
           <Route path="/stylist" component={Stylist} />
           <Route path="/brand" component={BrandDashboard} />
+          <Route path="/admin" component={Admin} />
           <Route component={NotFound} />
         </Switch>
       </PageTransition>

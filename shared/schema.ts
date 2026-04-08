@@ -262,6 +262,23 @@ export const brandPaymentAccounts = pgTable("brand_payment_accounts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// ─── API Usage / Cost Tracking ───
+
+export const apiUsageLogs = pgTable("api_usage_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  service: text("service").notNull(),        // 'anthropic', 'openai_embedding', 'openai_vision', 'openai_chat'
+  model: text("model"),                       // e.g. 'claude-sonnet-4-20250514', 'text-embedding-3-small'
+  endpoint: text("endpoint"),                 // e.g. '/api/stylist/chat', '/api/search', 'scraper'
+  inputTokens: integer("input_tokens").default(0),
+  outputTokens: integer("output_tokens").default(0),
+  totalTokens: integer("total_tokens").default(0),
+  estimatedCostUsd: numeric("estimated_cost_usd").default("0"),
+  metadata: jsonb("metadata"),                // extra info (product count, user id, etc)
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type ApiUsageLog = typeof apiUsageLogs.$inferSelect;
+
 // ─── Waitlist ───
 
 export const waitlistEntries = pgTable("waitlist_entries", {

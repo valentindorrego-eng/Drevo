@@ -14,6 +14,7 @@ import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { logApiUsage, ensureApiUsageTable } from "./apiCostTracker";
 
 function getAuthUser(req: Request): User {
   return req.user as User;
@@ -446,6 +447,13 @@ Reply with ONLY valid JSON, no explanation.`
           });
           const aiIntent = JSON.parse(completion.choices[0].message?.content || "{}");
           intent = { ...intent, ...aiIntent };
+          logApiUsage({
+            service: "openai_chat",
+            model: process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini",
+            endpoint: "/api/search:intent",
+            inputTokens: completion.usage?.prompt_tokens || 0,
+            outputTokens: completion.usage?.completion_tokens || 0,
+          });
         } catch (e) {
           console.error("OpenAI Intent Error:", e);
         }
@@ -515,10 +523,12 @@ Reply with ONLY valid JSON, no explanation.`
       const doVectorSearch = async (queryText: string, limit: number = 40) => {
         if (!openai) return [];
         try {
+          const embModel = process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
           const embRes = await openai.embeddings.create({
-            model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+            model: embModel,
             input: queryText,
           });
+          logApiUsage({ service: "openai_embedding", model: embModel, endpoint: "/api/search", inputTokens: embRes.usage?.total_tokens || 0 });
           const embStr = `[${embRes.data[0].embedding.join(',')}]`;
           const matches = await pool.query(
             `SELECT * FROM match_products($1::vector(1536), $2, 0.1)`,
@@ -2388,6 +2398,17 @@ FORMATO:
         }
       }
 
+      // Log API cost
+      const finalMessage = await stream.finalMessage();
+      logApiUsage({
+        service: "anthropic",
+        model: stylistModel,
+        endpoint: "/api/stylist/chat",
+        inputTokens: finalMessage.usage?.input_tokens || 0,
+        outputTokens: finalMessage.usage?.output_tokens || 0,
+        metadata: { userId: user.id },
+      });
+
       res.write(`data: [DONE]\n\n`);
       res.end();
     } catch (error: any) {
@@ -2534,6 +2555,188 @@ FORMATO:
     }
   });
 
+  // ─── Internal Admin Dashboard ───
+
+  const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+    const key = req.headers["x-admin-key"] || req.query.adminKey;
+    if (key !== (process.env.ADMIN_KEY || "drevo-scrape-2026")) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    next();
+  };
+
+  // Overview stats
+  app.get("/api/internal/overview", requireAdmin, async (_req, res) => {
+    try {
+      const [users, waitlist, prods, brandCount, searches, clicks, orders] = await Promise.all([
+        pool.query("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as last_7d, COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') as last_24h FROM users"),
+        pool.query("SELECT COUNT(*) as total FROM waitlist_entries"),
+        pool.query("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE status = 'active') as active FROM products"),
+        pool.query("SELECT COUNT(*) as total FROM brands"),
+        pool.query("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') as last_24h, COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') as last_7d FROM search_queries"),
+        pool.query("SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE clicked_at >= NOW() - INTERVAL '24 hours') as last_24h, COUNT(*) FILTER (WHERE clicked_at >= NOW() - INTERVAL '7 days') as last_7d FROM product_clicks"),
+        pool.query("SELECT COUNT(*) as total, COALESCE(SUM(total::numeric), 0) as revenue FROM orders WHERE payment_status = 'approved'"),
+      ]);
+
+      res.json({
+        users: { total: +users.rows[0].total, last7d: +users.rows[0].last_7d, last24h: +users.rows[0].last_24h },
+        waitlist: { total: +waitlist.rows[0].total },
+        products: { total: +prods.rows[0].total, active: +prods.rows[0].active },
+        brands: { total: +brandCount.rows[0].total },
+        searches: { total: +searches.rows[0].total, last24h: +searches.rows[0].last_24h, last7d: +searches.rows[0].last_7d },
+        clicks: { total: +clicks.rows[0].total, last24h: +clicks.rows[0].last_24h, last7d: +clicks.rows[0].last_7d },
+        orders: { total: +orders.rows[0].total, revenue: parseFloat(orders.rows[0].revenue || "0").toFixed(2) },
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Waitlist entries
+  app.get("/api/internal/waitlist", requireAdmin, async (_req, res) => {
+    try {
+      const result = await pool.query("SELECT id, email, source, created_at FROM waitlist_entries ORDER BY created_at DESC LIMIT 500");
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Users list
+  app.get("/api/internal/users", requireAdmin, async (_req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT u.id, u.email, u.display_name, u.google_id IS NOT NULL as is_google,
+               u.style_passport_completed, u.created_at,
+               COUNT(DISTINCT sq.id) as search_count,
+               COUNT(DISTINCT pc.id) as click_count,
+               COUNT(DISTINCT ci.id) as saved_count
+        FROM users u
+        LEFT JOIN search_queries sq ON sq.user_id = u.id
+        LEFT JOIN product_clicks pc ON pc.user_id = u.id
+        LEFT JOIN collection_items ci ON ci.collection_id IN (SELECT id FROM collections WHERE user_id = u.id)
+        GROUP BY u.id
+        ORDER BY u.created_at DESC
+        LIMIT 500
+      `);
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // API costs
+  app.get("/api/internal/costs", requireAdmin, async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+
+      const [summary, byService, byDay, byEndpoint] = await Promise.all([
+        pool.query(`
+          SELECT
+            COALESCE(SUM(estimated_cost_usd::numeric), 0) as total_cost,
+            COALESCE(SUM(total_tokens), 0) as total_tokens,
+            COUNT(*) as total_calls
+          FROM api_usage_logs
+          WHERE created_at >= NOW() - INTERVAL '${days} days'
+        `),
+        pool.query(`
+          SELECT service, model,
+            COALESCE(SUM(estimated_cost_usd::numeric), 0) as cost,
+            COALESCE(SUM(total_tokens), 0) as tokens,
+            COUNT(*) as calls
+          FROM api_usage_logs
+          WHERE created_at >= NOW() - INTERVAL '${days} days'
+          GROUP BY service, model
+          ORDER BY cost DESC
+        `),
+        pool.query(`
+          SELECT DATE(created_at) as date,
+            COALESCE(SUM(estimated_cost_usd::numeric), 0) as cost,
+            COUNT(*) as calls
+          FROM api_usage_logs
+          WHERE created_at >= NOW() - INTERVAL '${days} days'
+          GROUP BY DATE(created_at)
+          ORDER BY date
+        `),
+        pool.query(`
+          SELECT endpoint,
+            COALESCE(SUM(estimated_cost_usd::numeric), 0) as cost,
+            COUNT(*) as calls
+          FROM api_usage_logs
+          WHERE created_at >= NOW() - INTERVAL '${days} days'
+          GROUP BY endpoint
+          ORDER BY cost DESC
+        `),
+      ]);
+
+      res.json({
+        summary: {
+          totalCostUsd: parseFloat(summary.rows[0].total_cost).toFixed(4),
+          totalTokens: +summary.rows[0].total_tokens,
+          totalCalls: +summary.rows[0].total_calls,
+          days,
+        },
+        byService: byService.rows.map((r: any) => ({
+          service: r.service,
+          model: r.model,
+          cost: parseFloat(r.cost).toFixed(4),
+          tokens: +r.tokens,
+          calls: +r.calls,
+        })),
+        byDay: byDay.rows.map((r: any) => ({
+          date: r.date,
+          cost: parseFloat(r.cost).toFixed(4),
+          calls: +r.calls,
+        })),
+        byEndpoint: byEndpoint.rows.map((r: any) => ({
+          endpoint: r.endpoint,
+          cost: parseFloat(r.cost).toFixed(4),
+          calls: +r.calls,
+        })),
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Recent searches
+  app.get("/api/internal/searches", requireAdmin, async (_req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT sq.id, sq.query_text, sq.parsed_intent, sq.created_at,
+               u.email as user_email
+        FROM search_queries sq
+        LEFT JOIN users u ON u.id = sq.user_id
+        ORDER BY sq.created_at DESC
+        LIMIT 100
+      `);
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Brands breakdown
+  app.get("/api/internal/brands", requireAdmin, async (_req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT b.id, b.name, b.slug, b.status, b.cpc_rate, b.created_at,
+               COUNT(DISTINCT p.id) as product_count,
+               COUNT(DISTINCT pc.id) as click_count,
+               EXISTS(SELECT 1 FROM brand_integrations bi WHERE bi.brand_id = b.id) as is_connected
+        FROM brands b
+        LEFT JOIN products p ON p.brand_id = b.id AND p.status = 'active'
+        LEFT JOIN product_clicks pc ON pc.brand_id = b.id
+        GROUP BY b.id
+        ORDER BY product_count DESC
+      `);
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  ensureApiUsageTable().catch(console.error);
   seedDatabase().catch(console.error);
   return httpServer;
 }
