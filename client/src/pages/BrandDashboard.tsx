@@ -3,7 +3,7 @@ import { Navigation } from "@/components/Navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
-import { Loader2, TrendingUp, MousePointerClick, ShoppingBag, DollarSign, Search, BarChart3, ArrowUpRight, Plug } from "lucide-react";
+import { Loader2, TrendingUp, MousePointerClick, ShoppingBag, DollarSign, Search, BarChart3, ArrowUpRight, Plug, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 
@@ -16,6 +16,12 @@ interface DashboardData {
     totalConversions: number;
     totalRevenue: string;
     conversionRate: string;
+  };
+  billing?: {
+    totalCpcSpend: string;
+    cpcClicks: number;
+    cpcLast30d: string;
+    cpcRates: Record<string, string>;
   };
   topProducts: { id: string; title: string; clicks: number; conversions: number; imageUrl: string | null }[];
   topQueries: { query: string; clicks: number; conversions: number }[];
@@ -163,6 +169,33 @@ export default function BrandDashboard() {
             <StatCard icon={TrendingUp} label="Conversiones" value={data.overview.totalConversions} subtitle={`${data.overview.conversionRate}% tasa`} accent />
             <StatCard icon={DollarSign} label="Revenue" value={`$${data.overview.totalRevenue}`} subtitle="Comisiones generadas" accent />
           </div>
+
+          {/* CPC Billing */}
+          {data.billing && parseFloat(data.billing.totalCpcSpend) > 0 && (
+            <div className="rounded-2xl border border-accent/30 bg-accent/5 p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-accent" />
+                <h2 className="text-lg font-display font-bold text-foreground">Costo por Click (CPC)</h2>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-2xl font-display font-bold text-foreground">${data.billing.cpcLast30d}</p>
+                  <p className="text-xs text-muted-foreground">Ultimos 30 dias</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-display font-bold text-foreground">{data.billing.cpcClicks}</p>
+                  <p className="text-xs text-muted-foreground">Clicks facturados</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-display font-bold text-foreground">${data.billing.totalCpcSpend}</p>
+                  <p className="text-xs text-muted-foreground">Total acumulado</p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Cada click de un usuario hacia tu tienda tiene un costo. Tu tarifa actual: ${Object.values(data.billing.cpcRates)[0] || "0"} ARS/click
+              </p>
+            </div>
+          )}
 
           {/* Clicks Chart */}
           <div className="rounded-2xl border border-border bg-card p-6 space-y-4">

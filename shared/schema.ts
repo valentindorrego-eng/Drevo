@@ -20,6 +20,7 @@ export const brands = pgTable("brands", {
   contactEmail: text("contact_email"),
   status: text("status").default("approved"), // 'pending', 'approved', 'rejected'
   commissionRate: numeric("commission_rate").default("0.25"),
+  cpcRate: numeric("cpc_rate").default("0"),    // Cost per click in ARS (0 = no CPC, scraped brands)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -157,6 +158,7 @@ export const productClicks = pgTable("product_clicks", {
   clickedAt: timestamp("clicked_at").defaultNow(),
   convertedAt: timestamp("converted_at"),
   commissionAmount: numeric("commission_amount"),
+  cpcAmount: numeric("cpc_amount"),        // CPC charge for connected brands
   status: text("status").default("clicked"),
 });
 

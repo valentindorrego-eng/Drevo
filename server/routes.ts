@@ -1796,6 +1796,19 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
       const random = Math.random().toString(36).substring(2, 8);
       const referralCode = `DRV-${timestamp}-${random}`;
 
+      // Check if brand is connected (has integration) → charge CPC
+      let cpcAmount: string | undefined;
+      if (product.brandId) {
+        const [brand] = await db.select({ cpcRate: brands.cpcRate }).from(brands).where(eq(brands.id, product.brandId));
+        if (brand && brand.cpcRate && parseFloat(brand.cpcRate) > 0) {
+          // Check if brand has active integration (connected, not just scraped)
+          const [integration] = await db.select({ id: brandIntegrations.id }).from(brandIntegrations).where(eq(brandIntegrations.brandId, product.brandId));
+          if (integration) {
+            cpcAmount = brand.cpcRate;
+          }
+        }
+      }
+
       const userId = req.user?.id || null;
       const click = await storage.createProductClick({
         userId: userId || undefined,
@@ -1804,6 +1817,7 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
         sessionId: sessionId || undefined,
         referralCode,
         queryText: queryText || undefined,
+        cpcAmount,
       });
 
       const baseUrl = product.externalUrl || "";
@@ -1957,6 +1971,30 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
         }
       }
 
+      // CPC billing: sum cpc_amount for connected brands
+      const cpcData = brandIds.length > 0
+        ? await pool.query(
+            `SELECT
+              COALESCE(SUM(CAST(cpc_amount AS numeric)), 0) as total_cpc,
+              COUNT(*) FILTER (WHERE cpc_amount IS NOT NULL AND CAST(cpc_amount AS numeric) > 0) as cpc_clicks,
+              COALESCE(SUM(CAST(cpc_amount AS numeric)) FILTER (WHERE clicked_at >= NOW() - INTERVAL '30 days'), 0) as cpc_last_30d
+            FROM product_clicks
+            WHERE brand_id = ANY($1)`,
+            [brandIds]
+          )
+        : { rows: [{ total_cpc: "0", cpc_clicks: "0", cpc_last_30d: "0" }] };
+
+      const cpcRow = cpcData.rows[0] || { total_cpc: "0", cpc_clicks: "0", cpc_last_30d: "0" };
+
+      // Get brand CPC rates
+      const brandCpcRates = brandIds.length > 0
+        ? await db.select({ id: brands.id, cpcRate: brands.cpcRate }).from(brands).where(sql`${brands.id} = ANY(${brandIds})`)
+        : [];
+      const cpcRateMap: Record<string, string> = {};
+      for (const b of brandCpcRates) {
+        cpcRateMap[b.id] = b.cpcRate || "0";
+      }
+
       res.json({
         hasBrand: true,
         brands: brandNames,
@@ -1966,6 +2004,12 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
           totalConversions,
           totalRevenue: totalRevenue.toFixed(2),
           conversionRate: conversionRate.toFixed(1),
+        },
+        billing: {
+          totalCpcSpend: parseFloat(cpcRow.total_cpc || "0").toFixed(2),
+          cpcClicks: parseInt(cpcRow.cpc_clicks || "0"),
+          cpcLast30d: parseFloat(cpcRow.cpc_last_30d || "0").toFixed(2),
+          cpcRates: cpcRateMap,
         },
         topProducts: topProducts.map(p => ({ ...p, imageUrl: imageMap[p.id] || null })),
         topQueries,
@@ -2355,6 +2399,65 @@ FORMATO:
     }
   });
 
+  // ─── CPC Admin Endpoints ───
+
+  app.post("/api/admin/brand/:brandId/cpc", requireAuth, async (req, res) => {
+    try {
+      const { cpcRate } = req.body;
+      if (cpcRate === undefined || cpcRate === null) {
+        return res.status(400).json({ message: "cpcRate es obligatorio (en ARS por click, ej: 150)" });
+      }
+      const [updated] = await db
+        .update(brands)
+        .set({ cpcRate: String(cpcRate), updatedAt: new Date() })
+        .where(eq(brands.id, req.params.brandId))
+        .returning({ id: brands.id, name: brands.name, cpcRate: brands.cpcRate });
+
+      if (!updated) return res.status(404).json({ message: "Marca no encontrada" });
+      res.json({ message: `CPC rate set to $${cpcRate} ARS`, brand: updated });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/billing", requireAuth, async (req, res) => {
+    try {
+      // Get CPC billing summary per brand
+      const result = await pool.query(`
+        SELECT
+          b.id, b.name, b.cpc_rate,
+          COUNT(pc.id) as total_clicks,
+          COUNT(pc.id) FILTER (WHERE pc.cpc_amount IS NOT NULL AND CAST(pc.cpc_amount AS numeric) > 0) as cpc_clicks,
+          COALESCE(SUM(CAST(pc.cpc_amount AS numeric)) FILTER (WHERE pc.cpc_amount IS NOT NULL), 0) as total_cpc_revenue,
+          COALESCE(SUM(CAST(pc.cpc_amount AS numeric)) FILTER (WHERE pc.cpc_amount IS NOT NULL AND pc.clicked_at >= NOW() - INTERVAL '30 days'), 0) as cpc_last_30d,
+          COUNT(pc.id) FILTER (WHERE pc.clicked_at >= NOW() - INTERVAL '30 days') as clicks_last_30d
+        FROM brands b
+        LEFT JOIN product_clicks pc ON pc.brand_id = b.id
+        WHERE EXISTS (SELECT 1 FROM brand_integrations bi WHERE bi.brand_id = b.id)
+        GROUP BY b.id, b.name, b.cpc_rate
+        ORDER BY total_cpc_revenue DESC
+      `);
+
+      const totalRevenue = result.rows.reduce((sum: number, r: any) => sum + parseFloat(r.total_cpc_revenue || "0"), 0);
+
+      res.json({
+        totalCpcRevenue: totalRevenue.toFixed(2),
+        brands: result.rows.map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          cpcRate: r.cpc_rate || "0",
+          totalClicks: parseInt(r.total_clicks),
+          cpcClicks: parseInt(r.cpc_clicks),
+          totalCpcRevenue: parseFloat(r.total_cpc_revenue).toFixed(2),
+          cpcLast30d: parseFloat(r.cpc_last_30d).toFixed(2),
+          clicksLast30d: parseInt(r.clicks_last_30d),
+        })),
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // ─── Scraper Admin Endpoints ───
 
   app.post("/api/admin/scrape", requireAuth, async (req, res) => {
@@ -2427,6 +2530,10 @@ FORMATO:
 async function seedDatabase() {
   try {
     await pool.query('CREATE EXTENSION IF NOT EXISTS vector;');
+
+    // Add CPC columns if not exists
+    await pool.query(`ALTER TABLE brands ADD COLUMN IF NOT EXISTS cpc_rate numeric DEFAULT '0'`);
+    await pool.query(`ALTER TABLE product_clicks ADD COLUMN IF NOT EXISTS cpc_amount numeric`);
     await pool.query(`
       CREATE OR REPLACE FUNCTION match_products (
         query_embedding vector(1536),

@@ -19,7 +19,7 @@ export interface IStorage {
   getTryonResult(userId: string, productId: string): Promise<TryonResult | undefined>;
   createTryonResult(data: { userId: string; productId: string; userImageUrl: string; resultImageUrl: string }): Promise<TryonResult>;
 
-  createProductClick(data: { userId?: string; productId: string; brandId?: string; sessionId?: string; referralCode: string; queryText?: string }): Promise<ProductClick>;
+  createProductClick(data: { userId?: string; productId: string; brandId?: string; sessionId?: string; referralCode: string; queryText?: string; cpcAmount?: string }): Promise<ProductClick>;
   convertClick(referralCode: string, orderAmount: number): Promise<ProductClick | undefined>;
   getClickAnalytics(): Promise<any>;
 
@@ -135,7 +135,7 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async createProductClick(data: { userId?: string; productId: string; brandId?: string; sessionId?: string; referralCode: string; queryText?: string }): Promise<ProductClick> {
+  async createProductClick(data: { userId?: string; productId: string; brandId?: string; sessionId?: string; referralCode: string; queryText?: string; cpcAmount?: string }): Promise<ProductClick> {
     const result = await db.insert(productClicks).values(data).returning();
     return result[0];
   }
