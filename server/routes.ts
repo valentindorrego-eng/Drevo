@@ -1369,10 +1369,16 @@ Reply with ONLY valid JSON, no explanation.`
         "acdn.mitiendanube.com",
         "acdn-us.mitiendanube.com",
         "d26lpennugtm8s.cloudfront.net",
+        "d3ugyf2ht6aenh.cloudfront.net",
         "lh3.googleusercontent.com",
         "platform-lookaside.fbsbx.com",
         "avatars.githubusercontent.com",
         "images.unsplash.com",
+        // Allow any cloudfront CDN (Tiendanube uses multiple)
+        "cloudfront.net",
+        // Allow any Tiendanube subdomain
+        "mitiendanube.com",
+        "tiendanube.com",
       ];
 
       const isPrivateIp = (hostname: string): boolean => {
@@ -1434,7 +1440,8 @@ Reply with ONLY valid JSON, no explanation.`
       }
 
       if (imageParts.length < 2) {
-        return res.status(400).json({ message: "No se pudieron cargar las imágenes necesarias" });
+        console.error(`[try-on] Only ${imageParts.length}/2 images loaded. userImage: ${userImageUrl}, productImage: ${productImage}`);
+        return res.status(400).json({ message: `No se pudieron cargar las imágenes necesarias (${imageParts.length}/2 cargadas)` });
       }
 
       const { Modality } = await import("@google/genai");
