@@ -8,7 +8,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { db, pool } from "./db";
 import { products, brands, categories, productImages, productVariants, productTags, productEmbeddings, brandIntegrations, waitlistEntries, type User } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { passport } from "./auth";
 import bcrypt from "bcryptjs";
 import multer from "multer";
@@ -262,7 +262,7 @@ export async function registerRoutes(
   }
 
   // ─── Tiendanube OAuth Routes ───
-  app.get("/auth/tiendanube/start", (req, res) => {
+  app.get("/auth/tiendanube/start", requireAuth, (req, res) => {
     const clientId = process.env.TIENDANUBE_CLIENT_ID;
     if (!clientId) {
       return res.status(500).send("Falta TIENDANUBE_CLIENT_ID en Secrets");
@@ -271,7 +271,8 @@ export async function registerRoutes(
     const protocol = req.protocol || "https";
     const redirectUri = `${protocol}://${host}/auth/tiendanube/callback`;
 
-    const state = Math.random().toString(36).substring(7);
+    const userId = getAuthUser(req).id;
+    const state = `${userId}:${Math.random().toString(36).substring(7)}`;
     const params = new URLSearchParams({ state, redirect_uri: redirectUri });
     const authUrl = `https://www.tiendanube.com/apps/${clientId}/authorize?${params.toString()}`;
     console.log("[TN OAuth] Redirecting to:", authUrl);
@@ -281,12 +282,14 @@ export async function registerRoutes(
 
   app.get("/api/integrations", requireAuth, async (req, res) => {
     try {
+      const userId = getAuthUser(req).id;
       const integrations = await db.select({
         id: brandIntegrations.id,
         provider: brandIntegrations.provider,
         storeId: brandIntegrations.storeId,
         createdAt: brandIntegrations.createdAt,
-      }).from(brandIntegrations);
+      }).from(brandIntegrations)
+        .where(eq(brandIntegrations.userId, userId));
       res.json({ integrations });
     } catch (error) {
       console.error("Error fetching integrations:", error);
@@ -339,18 +342,22 @@ export async function registerRoutes(
       const { access_token, user_id } = data;
       console.log("[TN Callback] Success! store_id (user_id):", user_id);
 
+      // Extract userId from state (format: "userId:randomString")
+      const ownerUserId = state ? String(state).split(":")[0] : null;
+
       const storeIdStr = user_id ? String(user_id) : null;
       const existing = await db.select().from(brandIntegrations)
         .where(sql`provider = 'tiendanube' AND store_id = ${storeIdStr}`);
       if (existing.length > 0) {
         await db.update(brandIntegrations)
-          .set({ accessToken: access_token })
+          .set({ accessToken: access_token, userId: ownerUserId })
           .where(eq(brandIntegrations.id, existing[0].id));
       } else {
         await db.insert(brandIntegrations).values({
           provider: "tiendanube",
           storeId: storeIdStr,
           accessToken: access_token,
+          userId: ownerUserId,
         });
       }
 
@@ -1572,12 +1579,13 @@ Output: ONE photorealistic image identical to Image 1 except with the new garmen
 
   app.post("/api/integrations/:integrationId/sync-products", requireAuth, async (req, res) => {
     const integrationId = String(req.params.integrationId);
+    const userId = getAuthUser(req).id;
 
     try {
       const [integration] = await db
         .select()
         .from(brandIntegrations)
-        .where(eq(brandIntegrations.id, integrationId));
+        .where(and(eq(brandIntegrations.id, integrationId), eq(brandIntegrations.userId, userId)));
 
       if (!integration) {
         return res.status(404).json({ message: "Integración no encontrada" });

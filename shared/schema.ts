@@ -105,6 +105,7 @@ export const searchQueries = pgTable("search_queries", {
 export const brandIntegrations = pgTable("brand_integrations", {
   id: uuid("id").primaryKey().defaultRandom(),
   brandId: uuid("brand_id").references(() => brands.id),
+  userId: uuid("user_id").references(() => users.id),
   provider: text("provider").notNull(),
   storeId: text("store_id"),
   accessToken: text("access_token").notNull(),
