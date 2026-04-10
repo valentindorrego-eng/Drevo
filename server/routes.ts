@@ -1501,19 +1501,34 @@ ${physicalDesc ? `\nPerson's physical description: ${physicalDesc}` : ""}
 
 Output: ONE photorealistic image identical to Image 1 except with the new garment.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-image",
-        contents: [{
-          role: "user",
-          parts: [
-            { text: tryonPrompt },
-            ...imageParts,
-          ],
-        }],
-        config: {
-          responseModalities: [Modality.TEXT, Modality.IMAGE],
-        },
-      });
+      // Retry up to 3 times with backoff for rate limits
+      let response: any;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-image",
+            contents: [{
+              role: "user",
+              parts: [
+                { text: tryonPrompt },
+                ...imageParts,
+              ],
+            }],
+            config: {
+              responseModalities: [Modality.TEXT, Modality.IMAGE],
+            },
+          });
+          break; // Success
+        } catch (retryErr: any) {
+          const msg = retryErr?.message || String(retryErr);
+          if ((msg.includes("RESOURCE_EXHAUSTED") || msg.includes("429") || msg.includes("rate")) && attempt < 2) {
+            console.log(`[try-on] Rate limited, retrying in ${(attempt + 1) * 5}s (attempt ${attempt + 1}/3)`);
+            await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 5000));
+            continue;
+          }
+          throw retryErr;
+        }
+      }
 
       const candidate = response.candidates?.[0];
       const generatedImagePart = candidate?.content?.parts?.find(
