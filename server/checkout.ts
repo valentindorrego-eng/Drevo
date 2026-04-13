@@ -296,16 +296,29 @@ export function registerCheckoutRoutes(app: express.Express) {
 
         // If paid, trigger brand order creation (fan-out to Tiendanube)
         if (mpStatus === "approved") {
-          fanOutBrandOrders(orderId).catch(err =>
-            console.error("Brand order fan-out error:", err)
-          );
+          fanOutBrandOrders(orderId).catch(err => {
+            console.error("CRITICAL: Brand order fan-out failed for order:", orderId, err);
+            // Mark order as needing manual intervention
+            db.update(orders).set({
+              status: "paid", // Keep as paid, not processing — needs attention
+              updatedAt: new Date()
+            }).where(eq(orders.id, orderId)).catch(e =>
+              console.error("Failed to update order status after fan-out error:", e)
+            );
+          });
         }
       }
 
       res.sendStatus(200);
     } catch (error) {
       console.error("MP webhook error:", error);
-      res.sendStatus(200); // Always return 200 to MP
+      // Only return 200 for expected errors (invalid payload format)
+      // Return 500 for unexpected errors so MP retries
+      if (error instanceof SyntaxError || !req.body?.type) {
+        res.sendStatus(200); // Bad payload, don't retry
+      } else {
+        res.sendStatus(500); // Real error, MP will retry
+      }
     }
   });
 

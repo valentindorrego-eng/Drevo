@@ -124,6 +124,7 @@ export default function Checkout() {
       const res = await fetch("/api/checkout/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           items: items.map(i => ({
             id: i.id,

@@ -14,6 +14,7 @@ export interface CartItem {
   quantity: number;
   externalUrl: string | null;
   variantId?: string | null;
+  externalProvider?: string | null; // 'tiendanube_scraped' = redirect, 'tiendanube' = integrated, null = drevo
 }
 
 interface CartContextType {

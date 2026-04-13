@@ -58,14 +58,20 @@ interface ScrapeResult {
 
 // ─── Fetch with retry and delay ───
 
-async function fetchWithRetry(url: string, retries = 3, delayMs = 1000): Promise<string> {
+async function fetchWithRetry(url: string, retries = 4, delayMs = 2000): Promise<string> {
   for (let i = 0; i < retries; i++) {
     try {
       const resp = await fetch(url, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "es-AR,es;q=0.9,en;q=0.5",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+          "Accept-Language": "es-AR,es;q=0.9,en-US;q=0.8,en;q=0.7",
+          "Cache-Control": "no-cache",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "none",
+          "Sec-Fetch-User": "?1",
+          "Upgrade-Insecure-Requests": "1",
         },
       });
       if (resp.ok) return await resp.text();
@@ -74,7 +80,9 @@ async function fetchWithRetry(url: string, retries = 3, delayMs = 1000): Promise
         if (location) return fetchWithRetry(location, retries - i - 1, delayMs);
       }
       if (resp.status === 429) {
-        await new Promise(r => setTimeout(r, delayMs * (i + 2)));
+        const backoff = delayMs * Math.pow(2, i + 1); // exponential backoff: 4s, 8s, 16s, 32s
+        console.log(`[Scraper] Rate limited (429), waiting ${backoff / 1000}s...`);
+        await new Promise(r => setTimeout(r, backoff));
         continue;
       }
       throw new Error(`HTTP ${resp.status}`);
@@ -105,6 +113,12 @@ async function scrapeListingPage(storeUrl: string): Promise<{ productIds: string
     } catch (err: any) {
       console.log(`[Scraper] Page ${page} failed: ${err.message}, stopping pagination`);
       break;
+    }
+
+    // Detect suspended/closed stores early
+    if (page === 1 && /suspendida|dada de baja|tienda no encontrada/i.test(html)) {
+      console.log(`[Scraper] SKIP: ${baseUrl} is suspended or closed`);
+      return { productIds: [], productUrls: [], storeName: "" };
     }
 
     // Extract store name from LS.store
@@ -179,7 +193,7 @@ async function scrapeListingPage(storeUrl: string): Promise<{ productIds: string
 
     page++;
     // Respectful delay between pages
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 1500));
   }
 
   console.log(`[Scraper] Total products found: ${productIds.length} from ${storeName || storeUrl}`);
@@ -567,9 +581,9 @@ export async function scrapeStore(storeUrl: string): Promise<ScrapeResult> {
       await processScrapedProduct(product, brandId, catMap);
       synced++;
 
-      // Respectful delay between product pages (500ms)
+      // Respectful delay between product pages (800ms)
       if (i < productIds.length - 1) {
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 800));
       }
     } catch (err: any) {
       console.error(`[Scraper] Error processing product ${pid}:`, err.message);
@@ -598,8 +612,8 @@ export async function scrapeMultipleStores(storeUrls: string[]): Promise<ScrapeR
     try {
       const result = await scrapeStore(url);
       results.push(result);
-      // Delay between stores (2s)
-      await new Promise(r => setTimeout(r, 2000));
+      // Delay between stores (5s to avoid rate limiting)
+      await new Promise(r => setTimeout(r, 5000));
     } catch (err: any) {
       console.error(`[Scraper] Failed to scrape ${url}:`, err.message);
       results.push({
@@ -616,9 +630,10 @@ export async function scrapeMultipleStores(storeUrls: string[]): Promise<ScrapeR
 }
 
 // ─── Curated list of Argentine fashion brands on Tiendanube ───
+// All URLs verified live (HTTP 200) as of April 2026
 
 export const INITIAL_BRANDS: { name: string; url: string }[] = [
-  // Verified active stores (April 2026)
+  // ─── Original curated stores ───
   { name: "Airborn", url: "https://airborn.mitiendanube.com" },
   { name: "Bensimon", url: "https://bensimon.mitiendanube.com" },
   { name: "La Cofradía", url: "https://lacofradia.mitiendanube.com" },
@@ -641,4 +656,161 @@ export const INITIAL_BRANDS: { name: string; url: string }[] = [
   { name: "Made BSAS", url: "https://madebsas.mitiendanube.com" },
   { name: "We Are Community", url: "https://wearecommunity.mitiendanube.com" },
   { name: "TIANG Elegance", url: "https://tiangelegancear.mitiendanube.com" },
+
+  // ─── Women's Fashion ───
+  { name: "Anais Sweaters", url: "https://anaissweaters.mitiendanube.com" },
+  { name: "ManTra Boho Chic", url: "https://mantrabohochic1.mitiendanube.com" },
+  { name: "OhMagnolia", url: "https://ohmagnolia.mitiendanube.com" },
+  { name: "Showroom Las Lolas", url: "https://showroomlaslolas3.mitiendanube.com" },
+  { name: "Xiner", url: "https://xinerarg.mitiendanube.com" },
+  { name: "Maqui Boutique", url: "https://maquiboutique.mitiendanube.com" },
+  { name: "SKRUPULOS", url: "https://skrupulos.mitiendanube.com" },
+  { name: "REVIEW", url: "https://review10.mitiendanube.com" },
+  { name: "ABACO", url: "https://estiloabaco.mitiendanube.com" },
+  { name: "Dr. Clothing", url: "https://drclothinglp2.mitiendanube.com" },
+  { name: "AURA Vestidos", url: "https://auravestidosok.mitiendanube.com" },
+  { name: "Justina Indumentaria", url: "https://justina1indumentaria.mitiendanube.com" },
+  { name: "Soul Clothing", url: "https://soulclothingba.mitiendanube.com" },
+  { name: "Kamelí Vestidos", url: "https://kamelivestidos.mitiendanube.com" },
+  { name: "Valentina Indumentaria", url: "https://valentinaindument.mitiendanube.com" },
+
+  // ─── Men's / Urban ───
+  { name: "NIB Merch", url: "https://nibmerch.mitiendanube.com" },
+  { name: "NARROW", url: "https://narrowquilmes.mitiendanube.com" },
+  { name: "GAMA Sport", url: "https://gamasport3.mitiendanube.com" },
+  { name: "Las Pelotas", url: "https://laspelotastienda.mitiendanube.com" },
+  { name: "Ese Es Tu Outfit", url: "https://eseestuoutfit.mitiendanube.com" },
+
+  // ─── Streetwear / Oversize ───
+  { name: "KURUNA Fashion", url: "https://kurunafashionwear.mitiendanube.com" },
+  { name: "Oversize Ropa", url: "https://oversizeropa.mitiendanube.com" },
+  { name: "Redskin", url: "https://redskin.mitiendanube.com" },
+  { name: "Rossek Streetwear", url: "https://rossek.mitiendanube.com" },
+  { name: "Leviatan Store", url: "https://leviatanstore3.mitiendanube.com" },
+  { name: "Bien Arriba", url: "https://bienarriba.mitiendanube.com" },
+  { name: "Pure Style", url: "https://purestyle95.mitiendanube.com" },
+  { name: "No Limits Clothes", url: "https://nolimitsclothes.mitiendanube.com" },
+
+  // ─── Calzado ───
+  { name: "Los Zapatos de La Negra", url: "https://loszapatosdelanegra.mitiendanube.com" },
+  { name: "AURA Shoes", url: "https://aurashoes2.mitiendanube.com" },
+  { name: "Veronese Zapatos", url: "https://veronessezapatos.mitiendanube.com" },
+  { name: "Argentina Zapatillas", url: "https://argentinazapatillas.mitiendanube.com" },
+  { name: "Pura Facha", url: "https://purafacha.mitiendanube.com" },
+  { name: "Kushkush", url: "https://kushkushtienda.mitiendanube.com" },
+
+  // ─── Accesorios / Carteras ───
+  { name: "Donna 8 Marroquinería", url: "https://donna8.mitiendanube.com" },
+  { name: "Carteras Urbana BA", url: "https://urbanaba.mitiendanube.com" },
+  { name: "Sucursal Tropea", url: "https://sucursaltropea.mitiendanube.com" },
+  { name: "Majica Store", url: "https://majicastore2.mitiendanube.com" },
+  { name: "Caira Carteras", url: "https://cairacarteras.mitiendanube.com" },
+  { name: "FIRA Buenos Aires", url: "https://fira.mitiendanube.com" },
+  { name: "Carval Carteras", url: "https://carvalcarteras.mitiendanube.com" },
+
+  // ─── Deportiva / Fitness ───
+  { name: "Workout Indumentaria", url: "https://workoutindumentariadeport.mitiendanube.com" },
+  { name: "Manive Sport", url: "https://manivesport.mitiendanube.com" },
+  { name: "Big Sportswear", url: "https://bigsportswear.mitiendanube.com" },
+  { name: "Sol Fitness", url: "https://solfitness.mitiendanube.com" },
+  { name: "Aura Fitness", url: "https://aurafitness.mitiendanube.com" },
+  { name: "Activa Fitness", url: "https://activafitnessoficial.mitiendanube.com" },
+  { name: "BIENSPORT", url: "https://biensport.mitiendanube.com" },
+  { name: "TIS Ropa Deportiva", url: "https://tisropadeportiva.mitiendanube.com" },
+
+  // ─── Denim / Jeans ───
+  { name: "PAISANA Argentina", url: "https://paisanadeargentina.mitiendanube.com" },
+  { name: "MOSS Indumentaria", url: "https://mossindumentaria.mitiendanube.com" },
+  { name: "Premium Denim", url: "https://premiumdenim.mitiendanube.com" },
+  { name: "Mayorista Tejano", url: "https://mayoristatejano.mitiendanube.com" },
+  { name: "MARIAS Jeans", url: "https://mariastiendadejeans.mitiendanube.com" },
+
+  // ─── Women's Fashion (expanded) ───
+  { name: "Pamplona Indumentaria", url: "https://pamplonaindumentaria.mitiendanube.com" },
+  { name: "Fika BA", url: "https://tiendafikaba.mitiendanube.com" },
+  { name: "Freya Moda", url: "https://freyamoda.mitiendanube.com" },
+  { name: "Mare Indumentaria", url: "https://indumentariamare.mitiendanube.com" },
+  { name: "Moda Glam", url: "https://modaglam.mitiendanube.com" },
+  { name: "Maneka", url: "https://maneka.mitiendanube.com" },
+  { name: "Alta Moda", url: "https://altamodaindumentaria3.mitiendanube.com" },
+  { name: "De Una Indumentaria", url: "https://deunaindumentaria.mitiendanube.com" },
+  { name: "DA Moda Circular", url: "https://damodacircular.mitiendanube.com" },
+  { name: "IUNIQ Moda", url: "https://iuniqmoda.mitiendanube.com" },
+  { name: "TORRES Buenos Aires", url: "https://torresbuenosaires.mitiendanube.com" },
+  { name: "Lola Ropa de Diseño", url: "https://lolaropadediseno.mitiendanube.com" },
+  { name: "Amaicha Ropa", url: "https://amaicharopa.mitiendanube.com" },
+  { name: "AUKA Diseño", url: "https://aukadisenioindependiente.mitiendanube.com" },
+  { name: "Cuatro Ninfas", url: "https://cuatroninfas.mitiendanube.com" },
+  { name: "Petit Poison", url: "https://petitpoison.mitiendanube.com" },
+  { name: "AY COCA!", url: "https://aycocacaseros.mitiendanube.com" },
+  { name: "Jivana Indumentaria", url: "https://jivanaindumentaria.mitiendanube.com" },
+  { name: "Bendita Store", url: "https://benditastore1.mitiendanube.com" },
+  { name: "Eternita", url: "https://eternita.mitiendanube.com" },
+  { name: "Perpetua Indumentaria", url: "https://perpetua14.mitiendanube.com" },
+  { name: "De Mi Tierra", url: "https://demitierraindumentaria.mitiendanube.com" },
+  { name: "Anana Plus Size", url: "https://ananaplussize.mitiendanube.com" },
+
+  // ─── Men's (expanded) ───
+  { name: "Basiqual", url: "https://basiqual.mitiendanube.com" },
+  { name: "Red Line", url: "https://redline15.mitiendanube.com" },
+  { name: "TSB Oficial", url: "https://tesebeoficial.mitiendanube.com" },
+  { name: "Joe Elegante Sport", url: "https://joeelegantesport.mitiendanube.com" },
+  { name: "Tienda de Hombre", url: "https://tiendadehombre.mitiendanube.com" },
+  { name: "VAN ROGER", url: "https://vanrogerindumentaria.mitiendanube.com" },
+
+  // ─── Streetwear (expanded) ───
+  { name: "Wynstars", url: "https://wynstars.mitiendanube.com" },
+  { name: "Weya", url: "https://weya2.mitiendanube.com" },
+  { name: "Urban Style AR", url: "https://urbanstylear.mitiendanube.com" },
+  { name: "MS Store Oversize", url: "https://msstoreoversize.mitiendanube.com" },
+  { name: "Maison de Minnett", url: "https://maisondeminnett.mitiendanube.com" },
+  { name: "NY Indumentaria", url: "https://nyindumentaria.mitiendanube.com" },
+
+  // ─── Deportiva (expanded) ───
+  { name: "CENTER-FIT", url: "https://centerfit.mitiendanube.com" },
+  { name: "Punto Fitness", url: "https://puntofitness6.mitiendanube.com" },
+  { name: "WEAR FITNESS", url: "https://wearfitness4.mitiendanube.com" },
+  { name: "Braca Activewear", url: "https://bracaactivewear.mitiendanube.com" },
+  { name: "KUMBHA Yoga", url: "https://kumbhayoga.mitiendanube.com" },
+  { name: "WELTER Gym Wear", url: "https://weltergymwearshop.mitiendanube.com" },
+
+  // ─── Padel / Deportes ───
+  { name: "Padel de Moda", url: "https://padeldemoda4.mitiendanube.com" },
+  { name: "Harlem Padel", url: "https://harlemind.mitiendanube.com" },
+  { name: "India Estudio", url: "https://indiaestudio.mitiendanube.com" },
+
+  // ─── Calzado (expanded) ───
+  { name: "Canvas Vulcanizado", url: "https://canvasvulcanizado.mitiendanube.com" },
+  { name: "Basca Shoes", url: "https://bascashoes.mitiendanube.com" },
+  { name: "Heyas", url: "https://heyas.mitiendanube.com" },
+  { name: "Lady Comfort", url: "https://ladycomfort.mitiendanube.com" },
+
+  // ─── Cuero / Leather ───
+  { name: "Liam Leather", url: "https://liamleatherculture.mitiendanube.com" },
+  { name: "HC Cuero Argentino", url: "https://hccueroargentino.mitiendanube.com" },
+  { name: "Evan Cueros", url: "https://evancueros.mitiendanube.com" },
+  { name: "CORAL Marroquinería", url: "https://coralmarroquineria.mitiendanube.com" },
+
+  // ─── Surf / Skate ───
+  { name: "Drifters", url: "https://driftersv2.mitiendanube.com" },
+  { name: "Kahuma Surf", url: "https://kahumasurf.mitiendanube.com" },
+
+  // ─── Tejidos / Knitwear ───
+  { name: "El Acay", url: "https://elacay.mitiendanube.com" },
+  { name: "FOGON Tejidos", url: "https://fogontejidos.mitiendanube.com" },
+
+  // ─── Lencería / Swimwear ───
+  { name: "Enriqueta", url: "https://enriqueta19.mitiendanube.com" },
+  { name: "So Cippo", url: "https://socippogirls.mitiendanube.com" },
+
+  // ─── Accesorios (expanded) ───
+  { name: "Love Bags", url: "https://lovebags22.mitiendanube.com" },
+  { name: "Pogo Caps", url: "https://pogocaps.mitiendanube.com" },
+  { name: "Black Pampa", url: "https://blackpampa.mitiendanube.com" },
+  { name: "Greenpacha", url: "https://greenpacha.mitiendanube.com" },
+
+  // ─── Multi-brand / Regional ───
+  { name: "Mendoza Urbana", url: "https://mzaurbana.mitiendanube.com" },
+  { name: "Indias del Sur", url: "https://indiasdelsur.mitiendanube.com" },
+  { name: "LDN Ropa Importada", url: "https://ldnropaimportadas.mitiendanube.com" },
 ];

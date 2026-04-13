@@ -79,8 +79,9 @@ export function useAuth() {
       const res = await apiRequest("PUT", "/api/auth/profile", data);
       return await res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    onSuccess: (updatedUser) => {
+      // Update cache immediately so UI reflects changes
+      queryClient.setQueryData(["/api/auth/me"], updatedUser);
     },
   });
 

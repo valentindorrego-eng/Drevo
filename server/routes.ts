@@ -14,6 +14,7 @@ import bcrypt from "bcryptjs";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { logApiUsage, ensureApiUsageTable } from "./apiCostTracker";
 
 function getAuthUser(req: Request): User {
@@ -25,6 +26,19 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPE
 const tryonRateLimit = new Map<string, number[]>();
 const TRYON_RATE_WINDOW_MS = 60 * 60 * 1000;
 const TRYON_RATE_MAX = 5;
+
+// Clean up stale entries every 10 minutes to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  tryonRateLimit.forEach((timestamps, userId) => {
+    const valid = timestamps.filter((t: number) => now - t < TRYON_RATE_WINDOW_MS);
+    if (valid.length === 0) {
+      tryonRateLimit.delete(userId);
+    } else {
+      tryonRateLimit.set(userId, valid);
+    }
+  });
+}, 10 * 60 * 1000);
 
 function checkTryonRateLimit(userId: string): boolean {
   const now = Date.now();
@@ -162,6 +176,8 @@ export async function registerRoutes(
         bodyType,
       });
       if (!updated) return res.status(404).json({ message: "Usuario no encontrado" });
+      // Sync session with DB so /api/auth/me returns fresh data
+      Object.assign(req.user as any, updated);
       const { passwordHash: _, ...safeUser } = updated;
       res.json(safeUser);
     } catch (error) {
@@ -272,11 +288,11 @@ export async function registerRoutes(
     const redirectUri = `${protocol}://${host}/auth/tiendanube/callback`;
 
     const userId = getAuthUser(req).id;
-    const state = `${userId}:${Math.random().toString(36).substring(7)}`;
+    const state = `${userId}:${crypto.randomBytes(16).toString("hex")}`;
     const params = new URLSearchParams({ state, redirect_uri: redirectUri });
     const authUrl = `https://www.tiendanube.com/apps/${clientId}/authorize?${params.toString()}`;
-    console.log("[TN OAuth] Redirecting to:", authUrl);
-    console.log("[TN OAuth] redirect_uri:", redirectUri);
+    // Store state in session for CSRF validation on callback
+    (req.session as any).tnOAuthState = state;
     res.redirect(authUrl);
   });
 
@@ -299,11 +315,21 @@ export async function registerRoutes(
 
   app.get("/auth/tiendanube/callback", async (req, res) => {
     const { code, state } = req.query;
-    console.log("[TN Callback] Received. Query params:", req.query);
 
     if (!code) {
-      console.error("[TN Callback] No code received. Full query:", req.query);
       return res.redirect(`/connect?error=no_code`);
+    }
+
+    // Validate OAuth state to prevent CSRF
+    const expectedState = (req.session as any)?.tnOAuthState;
+    if (!state || !expectedState || String(state) !== expectedState) {
+      return res.redirect(`/connect?error=invalid_state`);
+    }
+    // Clear used state (prevent replay)
+    delete (req.session as any).tnOAuthState;
+
+    if (!process.env.TIENDANUBE_CLIENT_SECRET) {
+      return res.redirect(`/connect?error=server_config`);
     }
 
     try {
@@ -313,7 +339,6 @@ export async function registerRoutes(
         grant_type: "authorization_code",
         code: String(code),
       };
-      console.log("[TN Callback] Exchanging code for token...");
 
       const response = await fetch("https://www.tiendanube.com/apps/authorize/token", {
         method: "POST",
@@ -322,8 +347,6 @@ export async function registerRoutes(
       });
 
       const responseText = await response.text();
-      console.log("[TN Callback] Token response status:", response.status);
-      console.log("[TN Callback] Token response body:", responseText);
 
       let data: any;
       try {
@@ -334,13 +357,10 @@ export async function registerRoutes(
       }
 
       if (!response.ok || !data.access_token) {
-        console.error("[TN Callback] Token exchange failed:", data);
-        return res.redirect(`/connect?error=token_failed&detail=${encodeURIComponent(JSON.stringify(data))}`);
+        return res.redirect(`/connect?error=token_failed`);
       }
 
-      // Tiendanube returns access_token and user_id (= store_id)
       const { access_token, user_id } = data;
-      console.log("[TN Callback] Success! store_id (user_id):", user_id);
 
       // Extract userId from state (format: "userId:randomString")
       const ownerUserId = state ? String(state).split(":")[0] : null;
@@ -368,10 +388,30 @@ export async function registerRoutes(
     }
   });
 
+  // ─── Search result cache (in-memory, 5 min TTL) ───
+  const searchCache = new Map<string, { result: any; timestamp: number }>();
+  const SEARCH_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  const embeddingCache = new Map<string, { embedding: number[]; timestamp: number }>();
+  const EMBEDDING_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
   app.post(api.search.searchProducts.path, async (req, res) => {
     try {
       const input = api.search.searchProducts.input.parse(req.body);
-      const query = input.query.toLowerCase();
+      const MAX_QUERY_LENGTH = 500;
+      const rawQuery = input.query.slice(0, MAX_QUERY_LENGTH).replace(/[<>{}]/g, "").trim();
+
+      // Check search cache first (exact match on query + filters)
+      const cacheKey = `${rawQuery}|${input.userSize || ""}|${input.sizeFilterEnabled || ""}`;
+      const cached = searchCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < SEARCH_CACHE_TTL) {
+        // Still log the search for analytics
+        storage.createSearchQuery(input.query, cached.result._intent || {}).catch(() => {});
+        return res.json(cached.result);
+      }
+      if (!rawQuery) {
+        return res.status(400).json({ error: "Query is required" });
+      }
+      const query = rawQuery.toLowerCase();
       const authenticatedUser = req.user as Express.User | undefined;
       const userSize = authenticatedUser?.preferredSize || input.userSize || null;
       const sizeFilterEnabled = input.sizeFilterEnabled !== false && !!userSize;
@@ -513,16 +553,25 @@ Reply with ONLY valid JSON, no explanation.`
         }
       }
 
-      // Generate embedding in parallel with storage (don't wait for intent — embedding is query-based)
+      // Generate embedding in parallel with storage — with cache
       let embedding: number[] = [];
-      const [, embResult] = await Promise.all([
-        storage.createSearchQuery(input.query, intent),
-        openai ? openai.embeddings.create({
-          model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
-          input: input.query,
-        }).catch(e => { console.error("OpenAI Embedding Error:", e); return null; }) : Promise.resolve(null),
-      ]);
-      if (embResult) embedding = embResult.data[0].embedding;
+      const cachedEmb = embeddingCache.get(input.query);
+      if (cachedEmb && Date.now() - cachedEmb.timestamp < EMBEDDING_CACHE_TTL) {
+        embedding = cachedEmb.embedding;
+        storage.createSearchQuery(input.query, intent).catch(() => {});
+      } else {
+        const [, embResult] = await Promise.all([
+          storage.createSearchQuery(input.query, intent),
+          openai ? openai.embeddings.create({
+            model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+            input: input.query,
+          }).catch(e => { console.error("OpenAI Embedding Error:", e); return null; }) : Promise.resolve(null),
+        ]);
+        if (embResult) {
+          embedding = embResult.data[0].embedding;
+          embeddingCache.set(input.query, { embedding, timestamp: Date.now() });
+        }
+      }
 
       let candidates: any[] = [];
       let similarities = new Map<string, number>();
@@ -531,12 +580,20 @@ Reply with ONLY valid JSON, no explanation.`
         if (!openai) return [];
         try {
           const embModel = process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small";
-          const embRes = await openai.embeddings.create({
-            model: embModel,
-            input: queryText,
-          });
-          logApiUsage({ service: "openai_embedding", model: embModel, endpoint: "/api/search", inputTokens: embRes.usage?.total_tokens || 0 });
-          const embStr = `[${embRes.data[0].embedding.join(',')}]`;
+          let searchEmbedding: number[];
+          const cachedSearchEmb = embeddingCache.get(queryText);
+          if (cachedSearchEmb && Date.now() - cachedSearchEmb.timestamp < EMBEDDING_CACHE_TTL) {
+            searchEmbedding = cachedSearchEmb.embedding;
+          } else {
+            const embRes = await openai.embeddings.create({
+              model: embModel,
+              input: queryText,
+            });
+            logApiUsage({ service: "openai_embedding", model: embModel, endpoint: "/api/search", inputTokens: embRes.usage?.total_tokens || 0 });
+            searchEmbedding = embRes.data[0].embedding;
+            embeddingCache.set(queryText, { embedding: searchEmbedding, timestamp: Date.now() });
+          }
+          const embStr = `[${searchEmbedding.join(',')}]`;
           const matches = await pool.query(
             `SELECT * FROM match_products($1::vector(1536), $2, 0.1)`,
             [embStr, limit]
@@ -626,6 +683,16 @@ Reply with ONLY valid JSON, no explanation.`
         const similarity = similarities.get(p.id) || 0.5;
         let score = similarity * 0.60;
         const reasons: string[] = [];
+        let isPromoted = false;
+
+        // CPC Boost — brands paying for visibility get ranking boost
+        if (p.brand?.boostActive && p.brand?.cpcRate && parseFloat(p.brand.cpcRate) > 0) {
+          const notExpired = !p.brand.boostExpiresAt || new Date(p.brand.boostExpiresAt) > new Date();
+          if (notExpired) {
+            score += 0.12;
+            isPromoted = true;
+          }
+        }
 
         const pText = `${p.title} ${p.description} ${p.tags.map((t: any) => t.tag).join(" ")}`.toLowerCase();
 
@@ -762,6 +829,8 @@ Reply with ONLY valid JSON, no explanation.`
           similarity: Math.max(0, Math.min(1, score)),
           reasons: Array.from(new Set(reasons)).slice(0, 3),
           _hasUserSize: hasUserSize,
+          isPromoted,
+          externalUrl: p.externalUrl || null,
         };
       }).sort((a, b) => b.similarity - a.similarity);
 
@@ -1080,9 +1149,10 @@ Reply with ONLY valid JSON, no explanation.`
       }
       const cleanResults = finalResults.map(({ _hasUserSize, ...rest }) => rest);
 
-      res.status(200).json({
+      const responsePayload = {
         query: input.query,
         intent,
+        _intent: intent, // preserved for cache analytics
         results: cleanResults,
         suggested_filters: {
           sizes: ["S", "M", "L", "XL"],
@@ -1090,7 +1160,17 @@ Reply with ONLY valid JSON, no explanation.`
         },
         outfit_bundles: outfitBundles,
         ...(userSize ? { sizeFilter: { size: userSize, enabled: sizeFilterEnabled } } : {}),
-      });
+      };
+
+      // Cache results for subsequent identical searches
+      searchCache.set(cacheKey, { result: responsePayload, timestamp: Date.now() });
+      // Prune old entries
+      if (searchCache.size > 200) {
+        const now = Date.now();
+        searchCache.forEach((v, k) => { if (now - v.timestamp > SEARCH_CACHE_TTL) searchCache.delete(k); });
+      }
+
+      res.status(200).json(responsePayload);
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Internal Error" });
@@ -1370,22 +1450,24 @@ Reply with ONLY valid JSON, no explanation.`
         return { data: bytes.toString("base64"), mimeType };
       };
 
-      const ALLOWED_IMAGE_HOSTS = [
+      // Strict whitelist — only exact subdomains, no wildcard domains
+      const ALLOWED_IMAGE_HOSTS = new Set([
         "d2r9epyceweg5n.cloudfront.net",
+        "d26lpennugtm8s.cloudfront.net",
+        "d3ugyf2ht6aenh.cloudfront.net",
         "images.tiendanube.com",
         "acdn.mitiendanube.com",
         "acdn-us.mitiendanube.com",
-        "d26lpennugtm8s.cloudfront.net",
-        "d3ugyf2ht6aenh.cloudfront.net",
         "lh3.googleusercontent.com",
         "platform-lookaside.fbsbx.com",
         "avatars.githubusercontent.com",
         "images.unsplash.com",
-        // Allow any cloudfront CDN (Tiendanube uses multiple)
-        "cloudfront.net",
-        // Allow any Tiendanube subdomain
-        "mitiendanube.com",
-        "tiendanube.com",
+      ]);
+      // Trusted parent domains — only allow subdomains of these
+      const ALLOWED_PARENT_DOMAINS = [
+        ".cloudfront.net",
+        ".mitiendanube.com",
+        ".tiendanube.com",
       ];
 
       const isPrivateIp = (hostname: string): boolean => {
@@ -1405,7 +1487,9 @@ Reply with ONLY valid JSON, no explanation.`
           const parsedUrl = new URL(url);
           if (parsedUrl.protocol !== "https:") return null;
           if (isPrivateIp(parsedUrl.hostname)) return null;
-          if (!ALLOWED_IMAGE_HOSTS.some(h => parsedUrl.hostname === h || parsedUrl.hostname.endsWith(`.${h}`))) {
+          const isAllowed = ALLOWED_IMAGE_HOSTS.has(parsedUrl.hostname) ||
+            ALLOWED_PARENT_DOMAINS.some(d => parsedUrl.hostname.endsWith(d) && parsedUrl.hostname.length > d.length);
+          if (!isAllowed) {
             console.warn(`[try-on] Blocked fetch to untrusted host: ${parsedUrl.hostname}`);
             return null;
           }
@@ -1574,7 +1658,51 @@ Output: ONE photorealistic image identical to Image 1 except with the new garmen
   });
 
   app.post(api.admin.reindex.path, async (req, res) => {
-    res.status(200).json({ success: true, message: "Reindexing triggered via script" });
+    // Find products missing embeddings
+    const missing = await pool.query(`
+      SELECT p.id, p.title, p.description
+      FROM products p
+      LEFT JOIN product_embeddings pe ON pe.product_id = p.id
+      WHERE pe.product_id IS NULL AND p.status = 'active'
+      LIMIT 200
+    `);
+
+    if (missing.rows.length === 0) {
+      return res.json({ success: true, message: "All products have embeddings", reindexed: 0 });
+    }
+
+    // Respond immediately, process in background
+    res.json({ success: true, message: `Reindexing ${missing.rows.length} products in background`, total: missing.rows.length });
+
+    const openaiMod = await import("openai");
+    const openaiClient = process.env.OPENAI_API_KEY ? new openaiMod.default({ apiKey: process.env.OPENAI_API_KEY }) : null;
+    if (!openaiClient) return;
+
+    let count = 0;
+    for (const row of missing.rows) {
+      try {
+        const tags = await db.select({ tag: productTags.tag }).from(productTags).where(eq(productTags.productId, row.id));
+        const tagStr = tags.map((t: { tag: string }) => t.tag).join(", ");
+        const textToEmbed = `${row.title}. ${row.description || ""} Tags: ${tagStr}`;
+
+        const embRes = await openaiClient.embeddings.create({
+          model: process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small",
+          input: textToEmbed,
+        });
+        const embeddingStr = `[${embRes.data[0].embedding.join(",")}]`;
+        await pool.query(
+          `INSERT INTO product_embeddings (product_id, embedding, embedding_model, updated_at)
+           VALUES ($1, $2::vector, $3, NOW())
+           ON CONFLICT (product_id) DO UPDATE
+           SET embedding = EXCLUDED.embedding, embedding_model = EXCLUDED.embedding_model, updated_at = EXCLUDED.updated_at`,
+          [row.id, embeddingStr, process.env.OPENAI_EMBEDDING_MODEL || "text-embedding-3-small"]
+        );
+        count++;
+      } catch (err: any) {
+        console.error(`[Reindex] Error embedding ${row.id}:`, err.message);
+      }
+    }
+    console.log(`[Reindex] Completed: ${count}/${missing.rows.length} products embedded`);
   });
 
   app.post("/api/integrations/:integrationId/sync-products", requireAuth, async (req, res) => {
@@ -2135,13 +2263,10 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
 
           // Boost products matching user preferences
           if (user?.stylePassportCompleted) {
-            const coloresEvitar = new Set(user.coloresEvitar || []);
+            const coloresEvitar = user.coloresEvitar || [];
             feedProducts = feedProducts.filter(p => {
               const tags = p.tags?.map((t: any) => t.tag?.toLowerCase()) || [];
-              for (const c of coloresEvitar) {
-                if (tags.some((t: string) => t.includes(c))) return false;
-              }
-              return true;
+              return !coloresEvitar.some((c: string) => tags.some((t: string) => t.includes(c)));
             });
           }
 
@@ -2247,6 +2372,47 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
     }
   });
 
+  // Update collection (rename, emoji)
+  app.put("/api/collections/:id", requireAuth, async (req, res) => {
+    try {
+      const collectionId = String(req.params.id);
+      const userId = getAuthUser(req).id;
+      const collection = await storage.getCollection(collectionId);
+      if (!collection || collection.userId !== userId) {
+        return res.status(403).json({ message: "Acceso denegado" });
+      }
+      const { name, emoji } = req.body;
+      const updates: any = {};
+      if (name && typeof name === "string") updates.name = name.slice(0, 100);
+      if (emoji !== undefined) updates.emoji = emoji ? String(emoji).slice(0, 4) : null;
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: "Nada que actualizar" });
+      }
+      const updated = await storage.updateCollection(collectionId, updates);
+      res.json(updated);
+    } catch (error) {
+      console.error("Update collection error:", error);
+      res.status(500).json({ message: "Error al actualizar colección" });
+    }
+  });
+
+  // Delete collection
+  app.delete("/api/collections/:id", requireAuth, async (req, res) => {
+    try {
+      const collectionId = String(req.params.id);
+      const userId = getAuthUser(req).id;
+      const collection = await storage.getCollection(collectionId);
+      if (!collection || collection.userId !== userId) {
+        return res.status(403).json({ message: "Acceso denegado" });
+      }
+      await storage.deleteCollection(collectionId);
+      res.json({ message: "Colección eliminada" });
+    } catch (error) {
+      console.error("Delete collection error:", error);
+      res.status(500).json({ message: "Error al eliminar colección" });
+    }
+  });
+
   app.get("/api/user/saved-products", requireAuth, async (req, res) => {
     try {
       const productIds = await storage.getUserSavedProductIds(getAuthUser(req).id);
@@ -2275,14 +2441,17 @@ IMPORTANT: Only list colors that are actually visible in the PRODUCT (not the mo
       const tempPath = path.join("/tmp", `audio-${Date.now()}.webm`);
       fs.writeFileSync(tempPath, file.buffer);
 
-      const transcription = await openai.audio.transcriptions.create({
-        model: "whisper-1",
-        file: fs.createReadStream(tempPath),
-        language: "es",
-      });
-
-      fs.unlinkSync(tempPath);
-      res.json({ text: transcription.text });
+      try {
+        const transcription = await openai.audio.transcriptions.create({
+          model: "whisper-1",
+          file: fs.createReadStream(tempPath),
+          language: "es",
+        });
+        res.json({ text: transcription.text });
+      } finally {
+        // Always clean up temp file, even if transcription fails
+        try { fs.unlinkSync(tempPath); } catch {}
+      }
     } catch (error: any) {
       console.error("Transcription error:", error);
       res.status(500).json({ message: "Error en transcripcion" });
@@ -2347,15 +2516,15 @@ Usá esta info para personalizar tus recomendaciones. No repitas estos datos al 
             (req as any)._stylistProducts = prods.map(p => ({
               id: p.id,
               title: p.title,
-              price: p.price,
+              basePrice: p.basePrice,
               salePrice: p.salePrice,
-              brandName: p.brandName,
+              brandName: p.brand?.name || null,
               imageUrl: p.images?.[0]?.url || null,
               externalUrl: p.externalUrl,
             }));
             const prodList = prods.map(p => {
-              const price = p.salePrice ? `$${p.salePrice}` : (p.price ? `$${p.price}` : "precio no disponible");
-              return `- ${p.title} (${p.brandName || "marca"}) — ${price} [PRODUCT:${p.id}]`;
+              const price = p.salePrice ? `$${p.salePrice}` : (p.basePrice ? `$${p.basePrice}` : "precio no disponible");
+              return `- ${p.title} (${p.brand?.name || "marca"}) — ${price} [PRODUCT:${p.id}]`;
             }).join("\n");
             catalogContext = `\n\nPRODUCTOS RELEVANTES EN CATÁLOGO DREVO (podés recomendar estos):
 ${prodList}
@@ -2458,20 +2627,76 @@ FORMATO:
 
   // ─── CPC Admin Endpoints ───
 
+  // Set CPC rate + activate/deactivate boost for a brand
   app.post("/api/admin/brand/:brandId/cpc", requireAuth, async (req, res) => {
     try {
-      const { cpcRate } = req.body;
+      const { cpcRate, boostActive, boostDays } = req.body;
       if (cpcRate === undefined || cpcRate === null) {
         return res.status(400).json({ message: "cpcRate es obligatorio (en ARS por click, ej: 150)" });
       }
+
+      const updateData: any = {
+        cpcRate: String(cpcRate),
+        updatedAt: new Date(),
+      };
+
+      // If boostActive is explicitly set, use it
+      if (boostActive !== undefined) {
+        updateData.boostActive = Boolean(boostActive);
+      } else if (parseFloat(String(cpcRate)) > 0) {
+        // Auto-activate boost when setting a CPC rate > 0
+        updateData.boostActive = true;
+      }
+
+      // Set expiration: default 30 days if not specified
+      if (updateData.boostActive) {
+        const days = boostDays || 30;
+        updateData.boostExpiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      }
+
       const [updated] = await db
         .update(brands)
-        .set({ cpcRate: String(cpcRate), updatedAt: new Date() })
-        .where(eq(brands.id, req.params.brandId))
-        .returning({ id: brands.id, name: brands.name, cpcRate: brands.cpcRate });
+        .set(updateData)
+        .where(eq(brands.id, String(req.params.brandId)))
+        .returning({
+          id: brands.id,
+          name: brands.name,
+          cpcRate: brands.cpcRate,
+          boostActive: brands.boostActive,
+          boostExpiresAt: brands.boostExpiresAt,
+        });
 
       if (!updated) return res.status(404).json({ message: "Marca no encontrada" });
-      res.json({ message: `CPC rate set to $${cpcRate} ARS`, brand: updated });
+      res.json({
+        message: `CPC: $${cpcRate} ARS/click. Boost: ${updated.boostActive ? "ACTIVO" : "INACTIVO"}${updated.boostExpiresAt ? ` hasta ${new Date(updated.boostExpiresAt).toLocaleDateString("es-AR")}` : ""}`,
+        brand: updated,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // List all brands with boost status (for admin dashboard)
+  app.get("/api/admin/brands", requireAuth, async (req, res) => {
+    try {
+      const allBrands = await db.select({
+        id: brands.id,
+        name: brands.name,
+        slug: brands.slug,
+        cpcRate: brands.cpcRate,
+        boostActive: brands.boostActive,
+        boostExpiresAt: brands.boostExpiresAt,
+        status: brands.status,
+      }).from(brands).orderBy(brands.name);
+
+      res.json({
+        brands: allBrands.map(b => ({
+          ...b,
+          cpcRate: b.cpcRate || "0",
+          boostActive: b.boostActive || false,
+          isExpired: b.boostExpiresAt ? new Date(b.boostExpiresAt) < new Date() : false,
+        })),
+      });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -2741,6 +2966,64 @@ FORMATO:
         LIMIT 100
       `);
       res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Discovery analytics — the intent dataset
+  app.get("/api/internal/discovery", requireAdmin, async (_req, res) => {
+    try {
+      const [topQueries, topClickedBrands, conversionFunnel, querysByDay] = await Promise.all([
+        pool.query(`
+          SELECT query_text, COUNT(*) as count,
+                 COUNT(DISTINCT user_id) as unique_users
+          FROM search_queries
+          WHERE created_at >= NOW() - INTERVAL '30 days'
+          GROUP BY query_text
+          ORDER BY count DESC
+          LIMIT 30
+        `),
+        pool.query(`
+          SELECT b.name, COUNT(pc.id) as clicks,
+                 COUNT(pc.id) FILTER (WHERE pc.converted_at IS NOT NULL) as conversions
+          FROM product_clicks pc
+          JOIN brands b ON b.id = pc.brand_id
+          WHERE pc.clicked_at >= NOW() - INTERVAL '30 days'
+          GROUP BY b.id, b.name
+          ORDER BY clicks DESC
+          LIMIT 20
+        `),
+        pool.query(`
+          SELECT
+            (SELECT COUNT(*) FROM search_queries WHERE created_at >= NOW() - INTERVAL '30 days') as searches,
+            (SELECT COUNT(*) FROM product_clicks WHERE clicked_at >= NOW() - INTERVAL '30 days') as clicks,
+            (SELECT COUNT(*) FROM product_clicks WHERE converted_at IS NOT NULL AND clicked_at >= NOW() - INTERVAL '30 days') as conversions,
+            (SELECT COUNT(*) FROM orders WHERE created_at >= NOW() - INTERVAL '30 days' AND payment_status = 'approved') as paid_orders
+        `),
+        pool.query(`
+          SELECT DATE(created_at) as date, COUNT(*) as searches
+          FROM search_queries
+          WHERE created_at >= NOW() - INTERVAL '30 days'
+          GROUP BY DATE(created_at)
+          ORDER BY date
+        `),
+      ]);
+
+      const funnel = conversionFunnel.rows[0];
+      res.json({
+        topQueries: topQueries.rows,
+        topClickedBrands: topClickedBrands.rows,
+        funnel: {
+          searches: +funnel.searches,
+          clicks: +funnel.clicks,
+          clickRate: funnel.searches > 0 ? (+funnel.clicks / +funnel.searches * 100).toFixed(1) + "%" : "0%",
+          conversions: +funnel.conversions,
+          conversionRate: funnel.clicks > 0 ? (+funnel.conversions / +funnel.clicks * 100).toFixed(1) + "%" : "0%",
+          paidOrders: +funnel.paid_orders,
+        },
+        searchesByDay: querysByDay.rows,
+      });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

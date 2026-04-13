@@ -83,19 +83,11 @@ export default function ProductDetail() {
 
   const handleExternalClick = (e: React.MouseEvent) => {
     if (!product?.externalUrl) return;
-    // Open window synchronously to avoid popup blocker
-    const win = window.open("about:blank", "_blank", "noopener,noreferrer");
-    // Track click async and update URL
-    trackClick(id).then((referralUrl) => {
-      const url = referralUrl || product.externalUrl!;
-      if (win) {
-        win.location.href = url;
-      } else {
-        // Fallback if popup was blocked
-        window.location.href = url;
-      }
-    });
     e.preventDefault();
+    const url = product.externalUrl;
+    // Open immediately to avoid popup blockers, track async
+    window.open(url, "_blank", "noreferrer");
+    trackClick(id).catch(() => {});
   };
 
   const handleSearchSimilar = () => {
@@ -175,6 +167,7 @@ export default function ProductDetail() {
       sizeLabel: selectedSizeResolved,
       externalUrl: product.externalUrl || null,
       variantId: variant?.id || null,
+      externalProvider: product.externalProvider || null,
     });
 
     setJustAdded(true);

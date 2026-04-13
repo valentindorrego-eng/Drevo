@@ -116,6 +116,7 @@ export function TryOnModal({ productId, productTitle, productImage, isOpen, onCl
       const res = await fetch("/api/tryon", {
         method: "POST",
         body: formData,
+        credentials: "include",
       });
 
       if (!res.ok) {

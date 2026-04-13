@@ -52,6 +52,10 @@ export const queryClient = new QueryClient({
     },
     mutations: {
       retry: false,
+      onError: (error: Error) => {
+        // Global fallback — individual mutations can override with their own onError
+        console.error("Mutation error:", error.message);
+      },
     },
   },
 });

@@ -105,7 +105,11 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        const body = JSON.stringify(capturedJsonResponse);
+        logLine += ` :: ${body.length > 200 ? body.slice(0, 200) + "..." : body}`;
+      }
+      if (duration > 3000) {
+        logLine = `[SLOW] ${logLine}`;
       }
 
       log(logLine);
@@ -114,6 +118,26 @@ app.use((req, res, next) => {
 
   next();
 });
+
+// Validate required environment variables at startup
+function validateEnv() {
+  const required = ["DATABASE_URL"];
+  const missing = required.filter(key => !process.env[key]);
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+  }
+  const optional: Record<string, string> = {
+    OPENAI_API_KEY: "AI search will be disabled",
+    MP_ACCESS_TOKEN: "MercadoPago payments will be disabled",
+    SESSION_SECRET: "Using dev fallback (insecure for production)",
+  };
+  for (const [key, warning] of Object.entries(optional)) {
+    if (!process.env[key]) {
+      console.warn(`WARNING: ${key} not set — ${warning}`);
+    }
+  }
+}
+validateEnv();
 
 (async () => {
   // Pre-create session table to avoid connect-pg-simple's table.sql file dependency

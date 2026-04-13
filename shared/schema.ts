@@ -1,4 +1,4 @@
-import { pgTable, text, uuid, numeric, integer, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, uuid, numeric, integer, timestamp, jsonb, boolean, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -21,6 +21,8 @@ export const brands = pgTable("brands", {
   status: text("status").default("approved"), // 'pending', 'approved', 'rejected'
   commissionRate: numeric("commission_rate").default("0.25"),
   cpcRate: numeric("cpc_rate").default("0"),    // Cost per click in ARS (0 = no CPC, scraped brands)
+  boostActive: boolean("boost_active").default(false),
+  boostExpiresAt: timestamp("boost_expires_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -41,7 +43,10 @@ export const products = pgTable("products", {
   externalUrl: text("external_url"),          // link to buy on the original store
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_products_brand_id").on(table.brandId),
+  index("idx_products_status").on(table.status),
+]);
 
 export const productVariants = pgTable("product_variants", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -49,20 +54,26 @@ export const productVariants = pgTable("product_variants", {
   sizeLabel: text("size_label").notNull(),
   sku: text("sku"),
   stockQty: integer("stock_qty").default(0),
-});
+}, (table) => [
+  index("idx_product_variants_product_id").on(table.productId),
+]);
 
 export const productImages = pgTable("product_images", {
   id: uuid("id").primaryKey().defaultRandom(),
   productId: uuid("product_id").references(() => products.id),
   url: text("url").notNull(),
   position: integer("position").default(0),
-});
+}, (table) => [
+  index("idx_product_images_product_id").on(table.productId),
+]);
 
 export const productTags = pgTable("product_tags", {
   id: uuid("id").primaryKey().defaultRandom(),
   productId: uuid("product_id").references(() => products.id),
   tag: text("tag").notNull(),
-});
+}, (table) => [
+  index("idx_product_tags_product_id").on(table.productId),
+]);
 
 // Since pgvector's vector type isn't natively exported by drizzle-orm/pg-core standard types in the older versions
 // without explicit configuration, we can use customType if needed. We'll try to use standard SQL vector later or a text field temporarily if vector is missing, but Drizzle does support it via custom types or explicit vector().
@@ -161,7 +172,10 @@ export const productClicks = pgTable("product_clicks", {
   commissionAmount: numeric("commission_amount"),
   cpcAmount: numeric("cpc_amount"),        // CPC charge for connected brands
   status: text("status").default("clicked"),
-});
+}, (table) => [
+  index("idx_product_clicks_brand_id").on(table.brandId),
+  index("idx_product_clicks_product_id").on(table.productId),
+]);
 
 export const collections = pgTable("collections", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -171,7 +185,9 @@ export const collections = pgTable("collections", {
   isDefault: boolean("is_default").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("idx_collections_user_id").on(table.userId),
+]);
 
 export const collectionItems = pgTable("collection_items", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -179,7 +195,9 @@ export const collectionItems = pgTable("collection_items", {
   productId: uuid("product_id").references(() => products.id).notNull(),
   addedAt: timestamp("added_at").defaultNow(),
   notes: text("notes"),
-});
+}, (table) => [
+  index("idx_collection_items_collection_id").on(table.collectionId),
+]);
 
 // ─── Checkout & Orders ───
 

@@ -13,6 +13,7 @@ type Product = {
   brand: { name: string; slug: string } | null;
   images: { url: string; position: number | null }[];
   reasons?: string[];
+  isPromoted?: boolean;
 };
 
 interface ProductCardProps {
@@ -51,6 +52,12 @@ export function ProductCard({ product, index = 0, showSayMore = true }: ProductC
                 className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105 group-hover:brightness-110"
                 loading="lazy"
               />
+
+              {product.isPromoted && (
+                <div className="absolute top-3 right-3 bg-accent/90 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider">
+                  Ad
+                </div>
+              )}
 
               {hasDiscount && (
                 <div className="absolute top-3 left-3 bg-accent text-black text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider">

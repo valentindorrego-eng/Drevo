@@ -26,6 +26,8 @@ export interface IStorage {
   getCollectionsByUser(userId: string): Promise<Collection[]>;
   getCollection(id: string): Promise<Collection | undefined>;
   createCollection(data: { userId: string; name: string; emoji?: string; isDefault?: boolean }): Promise<Collection>;
+  updateCollection(id: string, data: { name?: string; emoji?: string | null }): Promise<Collection | undefined>;
+  deleteCollection(id: string): Promise<void>;
   addCollectionItem(collectionId: string, productId: string): Promise<CollectionItem>;
   removeCollectionItem(collectionId: string, productId: string): Promise<void>;
   getCollectionItems(collectionId: string): Promise<any[]>;
@@ -58,63 +60,68 @@ export class DatabaseStorage implements IStorage {
     return result[0] || undefined;
   }
 
+  // Batch-load related data for a list of products (eliminates N+1)
+  private async enrichProducts(productList: typeof products.$inferSelect[]) {
+    if (productList.length === 0) return [];
+
+    const productIds = productList.map(p => p.id);
+    const brandIds = Array.from(new Set(productList.map(p => p.brandId).filter(Boolean))) as string[];
+
+    // 4 batch queries instead of 4 × N individual queries
+    const [allBrands, allImages, allVariants, allTags] = await Promise.all([
+      brandIds.length > 0 ? db.select().from(brands).where(inArray(brands.id, brandIds)) : [],
+      db.select().from(productImages).where(inArray(productImages.productId, productIds)),
+      db.select().from(productVariants).where(inArray(productVariants.productId, productIds)),
+      db.select().from(productTags).where(inArray(productTags.productId, productIds)),
+    ]);
+
+    // Index by ID for O(1) lookup
+    const brandMap = new Map(allBrands.map(b => [b.id, b]));
+    const imageMap = new Map<string, typeof allImages>();
+    const variantMap = new Map<string, typeof allVariants>();
+    const tagMap = new Map<string, typeof allTags>();
+
+    for (const img of allImages) {
+      const list = imageMap.get(img.productId!) || [];
+      list.push(img);
+      imageMap.set(img.productId!, list);
+    }
+    for (const v of allVariants) {
+      const list = variantMap.get(v.productId!) || [];
+      list.push(v);
+      variantMap.set(v.productId!, list);
+    }
+    for (const t of allTags) {
+      const list = tagMap.get(t.productId!) || [];
+      list.push(t);
+      tagMap.set(t.productId!, list);
+    }
+
+    return productList.map(p => ({
+      ...p,
+      brand: p.brandId ? brandMap.get(p.brandId) || null : null,
+      images: imageMap.get(p.id) || [],
+      variants: variantMap.get(p.id) || [],
+      tags: tagMap.get(p.id) || [],
+    }));
+  }
+
   async getProducts() {
     const allProducts = await db.select().from(products);
-    const result = [];
-    for (const p of allProducts) {
-      const pBrands = await db.select().from(brands).where(eq(brands.id, p.brandId!));
-      const pImages = await db.select().from(productImages).where(eq(productImages.productId, p.id));
-      const pVariants = await db.select().from(productVariants).where(eq(productVariants.productId, p.id));
-      const pTags = await db.select().from(productTags).where(eq(productTags.productId, p.id));
-      
-      result.push({
-        ...p,
-        brand: pBrands[0] || null,
-        images: pImages,
-        variants: pVariants,
-        tags: pTags
-      });
-    }
-    return result;
+    return this.enrichProducts(allProducts);
   }
 
   async getProduct(id: string) {
     const pArray = await db.select().from(products).where(eq(products.id, id));
     if (pArray.length === 0) return undefined;
-    const p = pArray[0];
-    const pBrands = await db.select().from(brands).where(eq(brands.id, p.brandId!));
-    const pImages = await db.select().from(productImages).where(eq(productImages.productId, p.id));
-    const pVariants = await db.select().from(productVariants).where(eq(productVariants.productId, p.id));
-    const pTags = await db.select().from(productTags).where(eq(productTags.productId, p.id));
-    
-    return {
-      ...p,
-      brand: pBrands[0] || null,
-      images: pImages,
-      variants: pVariants,
-      tags: pTags
-    };
+    const enriched = await this.enrichProducts(pArray);
+    return enriched[0];
   }
 
   async getProductsByIds(ids: string[]) {
     if (ids.length === 0) return [];
     const pArray = await db.select().from(products).where(inArray(products.id, ids));
-    const result = [];
-    for (const p of pArray) {
-      const pBrands = await db.select().from(brands).where(eq(brands.id, p.brandId!));
-      const pImages = await db.select().from(productImages).where(eq(productImages.productId, p.id));
-      const pVariants = await db.select().from(productVariants).where(eq(productVariants.productId, p.id));
-      const pTags = await db.select().from(productTags).where(eq(productTags.productId, p.id));
-      
-      result.push({
-        ...p,
-        brand: pBrands[0] || null,
-        images: pImages,
-        variants: pVariants,
-        tags: pTags
-      });
-    }
-    return result;
+    return this.enrichProducts(pArray);
   }
 
   async createSearchQuery(queryText: string, intent: any) {
@@ -195,6 +202,17 @@ export class DatabaseStorage implements IStorage {
   async createCollection(data: { userId: string; name: string; emoji?: string; isDefault?: boolean }): Promise<Collection> {
     const result = await db.insert(collections).values(data).returning();
     return result[0];
+  }
+
+  async updateCollection(id: string, data: { name?: string; emoji?: string | null }): Promise<Collection | undefined> {
+    const result = await db.update(collections).set(data).where(eq(collections.id, id)).returning();
+    return result[0] || undefined;
+  }
+
+  async deleteCollection(id: string): Promise<void> {
+    // Delete items first, then the collection
+    await db.delete(collectionItems).where(eq(collectionItems.collectionId, id));
+    await db.delete(collections).where(eq(collections.id, id));
   }
 
   async addCollectionItem(collectionId: string, productId: string): Promise<CollectionItem> {

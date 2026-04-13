@@ -1,7 +1,7 @@
 import { Navigation } from "@/components/Navigation";
 import { Link } from "wouter";
 import { useCart } from "@/context/CartContext";
-import { ShoppingBag, ArrowRight, Trash2, Plus, Minus, ExternalLink, CreditCard } from "lucide-react";
+import { ShoppingBag, ArrowRight, Trash2, Plus, Minus, ExternalLink, CreditCard, Store } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { trackClick } from "@/hooks/useClickTracker";
@@ -10,6 +10,18 @@ export default function Cart() {
   const { items, removeItem, updateQuantity, clearCart, totalItems, totalPrice } = useCart();
 
   const formatPrice = (p: number) => `$${p.toLocaleString("es-AR")}`;
+
+  // Split items: integrated brands checkout in Drevo, scraped brands redirect
+  const integratedItems = items.filter(i => !i.externalProvider || i.externalProvider === "tiendanube");
+  const scrapedItems = items.filter(i => i.externalProvider === "tiendanube_scraped");
+
+  // Group scraped items by brand for redirect
+  const scrapedByBrand = scrapedItems.reduce<Record<string, typeof scrapedItems>>((acc, item) => {
+    const key = item.brand || "Otra marca";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
 
   if (items.length === 0) {
     return (
@@ -153,12 +165,41 @@ export default function Cart() {
           <p className="text-xs text-muted-foreground">Impuestos y costos de envío se calculan al finalizar la compra.</p>
 
           <div className="space-y-3">
-            <Link href="/checkout">
-              <span className="w-full h-14 bg-accent text-black rounded-xl font-bold text-lg hover:bg-accent/80 transition-colors flex items-center justify-center gap-2 cursor-pointer" data-testid="link-checkout">
-                <CreditCard className="w-5 h-5" />
-                Finalizar compra
-              </span>
-            </Link>
+            {integratedItems.length > 0 && (
+              <Link href="/checkout">
+                <span className="w-full h-14 bg-accent text-black rounded-xl font-bold text-lg hover:bg-accent/80 transition-colors flex items-center justify-center gap-2 cursor-pointer" data-testid="link-checkout">
+                  <CreditCard className="w-5 h-5" />
+                  {scrapedItems.length > 0
+                    ? `Comprar ${integratedItems.reduce((s, i) => s + i.quantity, 0)} items en Drevo`
+                    : "Finalizar compra"
+                  }
+                </span>
+              </Link>
+            )}
+
+            {Object.entries(scrapedByBrand).map(([brand, brandItems]) => (
+              <a
+                key={brand}
+                href={brandItems[0].externalUrl || "#"}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  const referralUrl = await trackClick(brandItems[0].id);
+                  window.open(referralUrl || brandItems[0].externalUrl!, "_blank", "noopener,noreferrer");
+                }}
+                className="w-full h-12 border border-border rounded-xl font-medium text-sm text-muted-foreground hover:text-foreground hover:border-accent transition-all flex items-center justify-center gap-2 cursor-pointer"
+                data-testid={`link-external-brand-${brand}`}
+              >
+                <Store className="w-4 h-4" />
+                Completar {brandItems.reduce((s, i) => s + i.quantity, 0)} items en {brand}
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            ))}
+
+            {integratedItems.length === 0 && scrapedItems.length > 0 && (
+              <p className="text-xs text-center text-muted-foreground">
+                Estos productos se compran en las tiendas oficiales de cada marca.
+              </p>
+            )}
 
             <Link href="/search">
               <span className="w-full h-12 border border-border rounded font-medium text-sm text-muted-foreground hover:text-foreground hover:border-foreground transition-all flex items-center justify-center gap-2 cursor-pointer" data-testid="link-continue-shopping">
